@@ -14,6 +14,7 @@ I am a hexagonal plot of the landscape around Montpellier. I know my land cover,
 - `BBModel` creates me from the plot table and gives me my land cover.
 - `BBLandCover` holds the fractions of my area under each type of land cover.
 - `BBCityTerritory`, `BBAdministrativeTerritory` and `BBHuntingUnit` are the territories I belong to.
+- `BBRoad`, `BBHighway` and `BBRiver` are links on my edges, which my dispersing boars cross, and which kill some of my boars.
 
 ## Public API and Key Messages
 
@@ -47,7 +48,9 @@ As in the original model, the initial feeding intensity depends only on the popu
 
 Each type of land cover adds its fraction times its reference value, times one plus the weight of each of its food sources. Urban types are also scaled by the vegetation inside urban fabric. As in the original model, fences do not change K and r: the original gave them weights under names that its formula never looked up.
 
-Boars are a number on each plot, where the original had one population agent per plot. Unlike the original, boars never go below zero after growth: an overcrowded plot loses all its boars instead.
+Boars are a number on each plot, where the original had one population agent per plot. Dispersing boars stopped by a road or a highway leave through the edges that stopped nobody. When every edge stopped some, they are lost, as in the original model.
+
+Unlike the original, boars never go below zero after growth: an overcrowded plot loses all its boars instead.
 "
 Class {
 	#name : 'BBPlot',
@@ -436,9 +439,10 @@ BBPlot >> aspectWasteAccessibility: look [
 
 { #category : 'dispersal' }
 BBPlot >> attractivity [
-	"Answer how much I attract dispersing boars: the more room I have, the more"
+	"Answer how much I attract dispersing boars: the more room I have, the more, and more again if I am on a river"
 
 	^ self carryingCapacity * (1 - self saturation)
+	  * (1 + self riverAttractivity)
 ]
 
 { #category : 'boars' }
@@ -488,6 +492,15 @@ BBPlot >> densityDispersers [
 
 	^ boars * self densityDispersalRate * self meanVacancyOfNeighbours
 		  min: boars
+]
+
+{ #category : 'linear features' }
+BBPlot >> featuresTowards: aPlot [
+	"Answer the roads, highways and rivers on my edge with aPlot, in the order boars meet them"
+
+	^ ((self linksOfClass: BBLinearFeature) select: [ :each |
+		   (each otherEndOf: self) == aPlot ]) asSortedCollection: [ :a :b |
+		  a class crossingOrder <= b class crossingOrder ]
 ]
 
 { #category : 'food' }
@@ -652,6 +665,14 @@ BBPlot >> isUrban [
 	^ #( #City #IndusZone ) includes: landCover mainCover
 ]
 
+{ #category : 'linear features' }
+BBPlot >> killBoarsBesideRoads [
+	"Each road kills some of my boars, if it is mine: a road belongs to the plot with the lower id of the two it lies between"
+
+	((self linksOfClass: BBRoad) select: [ :each | each from == self ])
+		do: [ :each | each killResidentsOf: self ]
+]
+
 { #category : 'accessing' }
 BBPlot >> landCover [
 
@@ -701,6 +722,14 @@ BBPlot >> resetDispersal [
 	leavingBoars := 0
 ]
 
+{ #category : 'linear features' }
+BBPlot >> riverAttractivity [
+
+	^ (self linksOfClass: BBRiver) isEmpty
+		  ifTrue: [ 0 ]
+		  ifFalse: [ BBRiver attractivityRate ]
+]
+
 { #category : 'boars' }
 BBPlot >> saturation [
 	"Answer how full I am, from 0 when I have no boars to 1 when I hold as many as I can. A plot with no habitat counts as full"
@@ -713,9 +742,9 @@ BBPlot >> saturation [
 
 { #category : 'dispersal' }
 BBPlot >> sendDispersers: aNumber [
-	"Share aNumber of my boars among my neighbours that have a habitat and are not more crowded than me, in proportion to their attractivity. They stay if there is no such neighbour"
+	"Share aNumber of my boars among my neighbours that have a habitat and are not more crowded than me, in proportion to their attractivity. They stay if there is no such neighbour. Roads, highways and rivers on the way stop or kill some of them, and the stopped ones leave through the edges that stopped nobody. If every edge stopped some, the stopped boars are lost, as in the original model"
 
-	| welcoming totalAttractivity |
+	| welcoming totalAttractivity crossing stopped escapes |
 	aNumber > 0 ifFalse: [ ^ self ].
 	welcoming := self neighbourhood select: [ :each |
 		             each carryingCapacity > 0 and: [
@@ -724,9 +753,25 @@ BBPlot >> sendDispersers: aNumber [
 		                     inject: 0
 		                     into: [ :sum :each | sum + each attractivity ].
 	totalAttractivity > 0 ifFalse: [ ^ self ].
+	crossing := Dictionary new.
+	stopped := Dictionary new.
 	welcoming do: [ :each |
-			each receiveDispersers:
-				each attractivity / totalAttractivity * aNumber ].
+			| boarsOnTheWay stoppedOnTheWay |
+			boarsOnTheWay := each attractivity / totalAttractivity * aNumber.
+			stoppedOnTheWay := 0.
+			(self featuresTowards: each) do: [ :feature |
+					stoppedOnTheWay := stoppedOnTheWay
+					                   + (feature stopped: boarsOnTheWay).
+					boarsOnTheWay := feature cross: boarsOnTheWay ].
+			crossing at: each put: boarsOnTheWay.
+			stopped at: each put: stoppedOnTheWay ].
+	escapes := welcoming select: [ :each | (stopped at: each) = 0 ].
+	escapes do: [ :each |
+			crossing
+				at: each
+				put: (crossing at: each) + (stopped sum / escapes size) ].
+	crossing keysAndValuesDo: [ :neighbour :boarsArriving |
+		neighbour receiveDispersers: boarsArriving ].
 	leavingBoars := leavingBoars + aNumber
 ]
 

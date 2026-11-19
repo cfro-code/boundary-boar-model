@@ -67,6 +67,8 @@ BBTestCase >> plotRowAt: aPoint with: someAssociations [
 			       ('administrativeTerritory' -> 'MMM').
 			       ('humanPopDensity' -> 'noPop').
 			       ('livingStandard' -> 'NA') }.
+	#( 'N' 'NE' 'SE' 'S' 'SW' 'NW' ) do: [ :direction |
+		row at: 'edge' , direction put: '' ].
 	someAssociations do: [ :each | row add: each ].
 	^ row
 ]

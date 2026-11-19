@@ -6,12 +6,14 @@ I am BOUNDARYBOAR, a model of wild boar populations at the rural-urban interface
 - Create the hexagonal landscape of Montpellier from the plot and cover tables of my data folder.
 - Group plots into municipalities, administrative territories and hunting units.
 - Know the acorn mast of the current year, the same on every plot.
-- Run the yearly schedule of the model: boars grow, then move from crowded plots, all at once.
+- Create one road, highway or river per edge listed in the plot table.
+- Run the yearly schedule of the model: boars grow, then move from crowded plots, all at once, and cars kill some of those living beside roads.
 
 ## Collaborators:
 
 - `BBPlot`: the cells of my grid, in which odd columns are shifted down by half a cell, as in the original.
 - `BBLandCover`: the land cover of each plot.
+- `BBRoad`, `BBHighway` and `BBRiver`: the links on the edges between plots.
 - `BBCityTerritory`, `BBAdministrativeTerritory` and `BBHuntingUnit`: the territories.
 
 ## Public API and Key Messages
@@ -69,6 +71,31 @@ BBModel >> acornSeries [
 ]
 
 { #category : 'initialization' }
+BBModel >> addFeature: aFeatureClass between: aPlot and: anotherPlot [
+
+	((aPlot featuresTowards: anotherPlot) anySatisfy: [ :each |
+		 each class == aFeatureClass ]) ifTrue: [ ^ self ].
+	self newEntity: aFeatureClass from: aPlot to: anotherPlot
+]
+
+{ #category : 'initialization' }
+BBModel >> createLinearFeaturesFrom: somePlotRows [
+	"The plot table lists each road, highway or river on both plots of its edge, such as 'RW' for a road and a river. Create one link of each type per edge, from the plot with the lower id"
+
+	(somePlotRows asSortedCollection: [ :a :b |
+		 (self plotInRow: a) id <= (self plotInRow: b) id ]) do: [ :row |
+			| plot |
+			plot := self plotInRow: row.
+			#( #N #NE #SE #S #SW #NW ) do: [ :direction |
+					(plot hasNeighbourTowards: direction) ifTrue: [
+							(row at: 'edge' , direction) do: [ :letter |
+									self
+										addFeature: (BBLinearFeature forLetter: letter)
+										between: plot
+										and: (plot neighbourTowards: direction) ] ] ] ]
+]
+
+{ #category : 'initialization' }
 BBModel >> createTerritories [
 
 	self createTerritories: BBCityTerritory groupingPlotsBy: #cityName.
@@ -121,7 +148,7 @@ BBModel >> initMontpellier [
 
 { #category : 'initialization' }
 BBModel >> initWithPlotTable: somePlotRows coverTable: someCoverRows [
-	"Create the grid, the plots, their land cover and their boars from the rows of the plot and cover tables, which give one row per plot"
+	"Create the grid, the plots, their land cover, the roads, highways and rivers between them and their boars from the rows of the plot and cover tables, which give one row per plot"
 
 	acornAvailability := self acornSeries first.
 	self
@@ -136,7 +163,14 @@ BBModel >> initWithPlotTable: somePlotRows coverTable: someCoverRows [
 	someCoverRows do: [ :row |
 		(self plotInRow: row) landCover: (BBLandCover fromRow: row) ].
 	self createTerritories.
+	self createLinearFeaturesFrom: somePlotRows.
 	self cells do: [ :each | each initializeBoars ]
+]
+
+{ #category : 'boars' }
+BBModel >> killBoarsOnRoads [
+
+	self cells do: [ :each | each killBoarsBesideRoads ]
 ]
 
 { #category : 'private' }
@@ -148,13 +182,30 @@ BBModel >> plotInRow: aRow [
 		  at: (aRow at: 'colIndex') asNumber
 ]
 
+{ #category : 'boars' }
+BBModel >> resetRoadCollisions [
+
+	(self allEntitiesOfClass: BBRoad) do: [ :each | each resetCollisions ]
+]
+
+{ #category : 'boars' }
+BBModel >> roadCollisions [
+	"The number of boars killed by cars this year"
+
+	^ (self allEntitiesOfClass: BBRoad)
+		  inject: 0
+		  into: [ :sum :each | sum + each collisions ]
+]
+
 { #category : 'control' }
 BBModel >> step [
 	"One year"
 
 	<control>
+	self resetRoadCollisions.
 	self growBoars.
-	self disperseBoarsByDensity
+	self disperseBoarsByDensity.
+	self killBoarsOnRoads
 ]
 
 { #category : 'private' }
