@@ -116,6 +116,17 @@ BBHuntingTest >> testHuntingGroupsHuntMorePlotsEachYearUntil2018 [
 ]
 
 { #category : 'tests' }
+BBHuntingTest >> testHuntingStaysAllowedIn2018WhereThereIsNoMontpellier [
+
+	| model |
+	model := self modelWithForestPlotsIn: #( 'NIMES' 'GRABELS' ).
+	model applyScenariosIn: 2018.
+
+	self assert: (model cellAt: 1 at: 1) isHuntable.
+	self assert: (model cellAt: 1 at: 2) isHuntable
+]
+
+{ #category : 'tests' }
 BBHuntingTest >> testHuntsLeaveTheCitiesThatBanHunting [
 
 	| model |

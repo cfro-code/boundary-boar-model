@@ -23,6 +23,7 @@ I am BOUNDARYBOAR, a model of wild boar populations at the rural-urban interface
 
 - `initMontpellier` creates the landscape of 1990 from `plotMtpBis.csv` and `coverMtpBis.csv`.
 - `year` answers the year of the current step, 1990 plus the time step. The acorn series stops in 2028, so a simulation runs at most 38 steps.
+- `initNimes` creates the landscape of Nîmes in 1990 from `plotNimes.csv` and `coverNimes.csv`. As in the original model, its crop shares are read as they are, although many are above 1, which makes thousands of farmers.
 - `initWithPlotTable:coverTable:` creates a landscape from tables given as one dictionary per row, from column names to texts.
 
 ```
@@ -109,11 +110,11 @@ BBModel >> applyCityPolicies [
 
 { #category : 'hunting' }
 BBModel >> applyScenariosIn: aYear [
-	"In 2018, Montpellier bans hunting on its territory, as in the original model"
+	"In 2018, Montpellier bans hunting on its territory, as in the original model. On a map without Montpellier, nothing happens"
 
 	aYear = 2018 ifTrue: [
-			((self allEntitiesOfClass: BBCity) detect: [ :each |
-				 each name = 'MONTPELLIER' ]) banHunting ]
+			((self allEntitiesOfClass: BBCity) select: [ :each |
+				 each name = 'MONTPELLIER' ]) do: [ :each | each banHunting ] ]
 ]
 
 { #category : 'farming' }
@@ -374,6 +375,17 @@ BBModel >> initMontpellier [
 	self
 		initWithPlotTable: (self tableNamed: 'plotMtpBis.csv')
 		coverTable: (self tableNamed: 'coverMtpBis.csv')
+]
+
+{ #category : 'initialization' }
+BBModel >> initNimes [
+	"The landscape of Nîmes in 1990. As in the original model, the crop shares of the cover table are read as they are, although many of them are above 1"
+
+	<init>
+	<perspective: #perspectiveLandCover>
+	self
+		initWithPlotTable: (self tableNamed: 'plotNimes.csv')
+		coverTable: (self tableNamed: 'coverNimes.csv')
 ]
 
 { #category : 'initialization' }
