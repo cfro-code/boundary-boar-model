@@ -22,7 +22,8 @@ I am a hexagonal plot of the landscape around Montpellier. I know my land cover,
 - `carryingCapacity` and `growthRate` answer K and r, from `habitatQuality` and `habitatPotential`.
 - `boars` answers the number of boars on me, `saturation` how full I am, and `grow` makes them grow for a year.
 - `densityDispersers`, `sendDispersers:` and `settleDispersers` move boars to my neighbours, as `BBModel` orders.
-- `isHuntable` answers whether hunters may hunt on me: I have a habitat, less than half of me is built up, and my city allows hunting. `regulations` answers the hunts on me.
+- `isHuntable` answers whether hunters may hunt on me: I have a habitat, less than half of me is built up, and my city allows hunting. `regulations` answers the hunts and stands on me.
+- `farmers` answers my farmers, `farmlandBoars` how many of my boars live in my farmland, and `maximumFarmlandBoars` how many could.
 - `landCover` answers my land cover.
 - `cityTerritory`, `administrativeTerritory` and `huntingUnit` answer my territories.
 - The weights of density and living standard, and the reference carrying capacity and growth rate, are parameters of my class. The values of each type of land cover are constants of my class.
@@ -82,11 +83,26 @@ Class {
 		'densityDependence',
 		'maximumDispersalRate',
 		'dispersalSteepness',
-		'shrubEncroachmentRate'
+		'shrubEncroachmentRate',
+		'acornDamageReduction'
 	],
 	#category : 'BoundaryBoar-Model',
 	#package : 'BoundaryBoar-Model'
 }
+
+{ #category : 'parameters' }
+BBPlot class >> acornDamageReduction [
+	"How much less boars use farmland in a year of full acorn mast"
+
+	<parameterFloatMin: 0 max: 1 default: 0.7>
+	^ acornDamageReduction
+]
+
+{ #category : 'parameters' }
+BBPlot class >> acornDamageReduction: aNumber [
+
+	acornDamageReduction := aNumber
+]
 
 { #category : 'habitat' }
 BBPlot class >> carryingCapacityReferences [
@@ -350,6 +366,15 @@ BBPlot >> administrativeTerritory [
 	^ self getAggregateType: BBAdministrativeTerritory
 ]
 
+{ #category : 'farming' }
+BBPlot >> agriculturalUseFactor [
+	"Answer how much boars use farmland this year: less when there are many acorns in the woods"
+
+	^ 1
+	  -
+	  (self class acornDamageReduction * self acornAvailability squared)
+]
+
 { #category : 'aspects' }
 BBPlot >> aspectAdministrativeTerritory: look [
 
@@ -565,6 +590,22 @@ BBPlot >> edgeAttractivity [
 	^ features
 		  inject: 0
 		  into: [ :maximum :each | maximum max: each attractivityRate ]
+]
+
+{ #category : 'farming' }
+BBPlot >> farmers [
+
+	^ self occupantsOfClass: BBFarmer
+]
+
+{ #category : 'farming' }
+BBPlot >> farmlandBoars [
+	"Answer how many of my boars live in my farmland, in proportion to what farmland adds to my habitat quality"
+
+	| quality |
+	quality := self habitatQuality.
+	quality <= 0 ifTrue: [ ^ 0 ].
+	^ boars * (self habitatQualityOf: #Agri) / quality
 ]
 
 { #category : 'linear features' }
@@ -801,6 +842,16 @@ BBPlot >> loseBoarsKilledBy: someRegulations [
 	boars := boars - (someRegulations
 		          inject: 0
 		          into: [ :sum :each | sum + each boarsKilled ]) max: 0
+]
+
+{ #category : 'farming' }
+BBPlot >> maximumFarmlandBoars [
+	"Answer how many boars my farmland can hold. As in the original model, it divides by my habitat potential rather than my habitat quality"
+
+	| potential |
+	potential := self habitatPotential.
+	potential <= 0 ifTrue: [ ^ 0 ].
+	^ self carryingCapacity * (self habitatQualityOf: #Agri) / potential
 ]
 
 { #category : 'dispersal' }

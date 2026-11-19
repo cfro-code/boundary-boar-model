@@ -7,13 +7,14 @@ I am BOUNDARYBOAR, a model of wild boar populations at the rural-urban interface
 - Group plots into municipalities, administrative territories and hunting units.
 - Know the acorn mast of the current year, the same on every plot.
 - Create one road, highway or river per edge listed in the plot table.
-- Run the yearly schedule of the model, from 1991 to 2028: the acorns of the year and the land cover change, boars grow, then move from crowded plots, all at once, hunting groups organize their driven hunts, hunts and cars kill boars, and hunted boars flee. In 2018, Montpellier bans hunting.
+- Run the yearly schedule of the model, from 1991 to 2028: the acorns of the year and the land cover change, boars grow, then move from crowded plots, all at once, farmers measure their damage, and from 2019 protect their crops, hunting groups organize their driven hunts, hunts, stands and cars kill boars, and hunted boars flee. In 2018, Montpellier bans hunting.
 
 ## Collaborators:
 
 - `BBPlot`: the cells of my grid, in which odd columns are shifted down by half a cell, as in the original.
 - `BBLandCover`: the land cover of each plot.
-- `BBCity` and `BBHuntingGroup`: the managers of the territories.
+- `BBCity` and `BBHuntingGroup`: the managers of the territories, and `BBHuntingFederation`.
+- `BBFarmer`: the farmers of each plot with farmland in 1990.
 - `BBRoad`, `BBHighway` and `BBRiver`: the links on the edges between plots, from one `BBNode` to another at the corners of the edges.
 - `BBCityTerritory`, `BBAdministrativeTerritory` and `BBHuntingUnit`: the territories.
 
@@ -100,6 +101,38 @@ BBModel >> applyScenariosIn: aYear [
 				 each name = 'MONTPELLIER' ]) banHunting ]
 ]
 
+{ #category : 'farming' }
+BBModel >> assessDamage [
+
+	(self allEntitiesOfClass: BBFarmer) do: [ :each | each assessDamage ]
+]
+
+{ #category : 'initialization' }
+BBModel >> createFarmers [
+	"Each plot with farmland in 1990 has one farmer, plus more the more farmland it has. Each crop with a large enough share of the farmland has at least one farmer, who share it equally"
+
+	self cells do: [ :plot |
+			| farmland farmers |
+			farmland := plot landCover fractionOf: #Agri in: 1990.
+			farmland > 0 ifTrue: [
+					farmers := 1
+					           +
+					           (farmland * (BBFarmer maximumFarmersPerPlot - 1))
+						           floor.
+					{
+						BBWineGrower.
+						BBGrainFarmer.
+						BBVegetableFarmer } do: [ :farmerClass |
+							| share count |
+							share := plot landCover agriculturalShareOf: farmerClass crop.
+							share >= BBFarmer minimumCropShare ifTrue: [
+									count := (share * farmers) rounded max: 1.
+									count timesRepeat: [
+											(self newEntity: farmerClass locatedAt: plot)
+												surface: share * farmland / count;
+												decideWhetherICanAffordPermanentFences ] ] ] ] ]
+]
+
 { #category : 'initialization' }
 BBModel >> createLinearFeaturesFrom: somePlotRows [
 	"The plot table lists each road, highway or river on both plots of its edge, such as 'RW' for a road and a river. Create one link of each type per edge, from the plot with the lower id, between nodes at the two corners of the edge"
@@ -122,7 +155,7 @@ BBModel >> createLinearFeaturesFrom: somePlotRows [
 
 { #category : 'initialization' }
 BBModel >> createManagers [
-	"One municipality for each city territory, and one local hunting group for each hunting unit"
+	"One municipality for each city territory, one local hunting group for each hunting unit, the hunting federation, and the farmers of each plot"
 
 	(self allEntitiesOfClass: BBCityTerritory) do: [ :each |
 			each city: ((self newEntity: BBCity)
@@ -131,7 +164,9 @@ BBModel >> createManagers [
 	(self allEntitiesOfClass: BBHuntingUnit) do: [ :each |
 			each huntingGroup: ((self newEntity: BBHuntingGroup)
 					 huntingUnit: each;
-					 yourself) ]
+					 yourself) ].
+	self newEntity: BBHuntingFederation.
+	self createFarmers
 ]
 
 { #category : 'initialization' }
@@ -183,13 +218,26 @@ BBModel >> growBoars [
 
 { #category : 'hunting' }
 BBModel >> huntBoars [
-	"Every driven hunt kills its share of the boars of its plot, from the numbers before the hunts"
+	"Driven hunts kill their share of the boars of their plot, from the numbers before the hunts. Then stands kill their share of what is left"
 
-	(self allEntitiesOfClass: BBDrivenHunt) do: [ :each | each hunt ].
+	self huntBoarsWith: BBDrivenHunt.
 	(self allEntitiesOfClass: BBHuntingUnit) do: [ :each |
 		each recordBag ].
+	self huntBoarsWith: BBStand
+]
+
+{ #category : 'hunting' }
+BBModel >> huntBoarsWith: aRegulationClass [
+
+	(self allEntitiesOfClass: aRegulationClass) do: [ :each | each hunt ].
 	self cells do: [ :each |
-		each loseBoarsKilledBy: (each occupantsOfClass: BBDrivenHunt) ]
+		each loseBoarsKilledBy: (each occupantsOfClass: aRegulationClass) ]
+]
+
+{ #category : 'farming' }
+BBModel >> huntingFederation [
+
+	^ (self allEntitiesOfClass: BBHuntingFederation) first
 ]
 
 { #category : 'initialization' }
@@ -262,6 +310,27 @@ BBModel >> plotInRow: aRow [
 		  at: (aRow at: 'colIndex') asNumber
 ]
 
+{ #category : 'farming' }
+BBModel >> protectCrops [
+	"Farmers ask the hunting federation for temporary fences, which it gives the most damaged first. Then those without temporary fences may install permanent ones, and those under heavy pressure hunt on their plot"
+
+	| farmers |
+	farmers := self allEntitiesOfClass: BBFarmer.
+	farmers do: [ :each | each removeTemporaryFences ].
+	self huntingFederation grantTemporaryFencesTo:
+		(farmers select: [ :each | each needsTemporaryFences ]).
+	farmers do: [ :each |
+			each considerPermanentFences.
+			each considerStand ]
+]
+
+{ #category : 'hunting' }
+BBModel >> removeStands [
+	"Stands last one year"
+
+	(self allEntitiesOfClass: BBStand) do: [ :each | each delete ]
+]
+
 { #category : 'boars' }
 BBModel >> resetRoadCollisions [
 
@@ -279,15 +348,18 @@ BBModel >> roadCollisions [
 
 { #category : 'control' }
 BBModel >> step [
-	"One year"
+	"One year. People take action against boars from 2019"
 
 	<control>
+	self removeStands.
 	self resetRoadCollisions.
 	self updateAcorns.
 	self applyScenariosIn: self year.
 	self cells do: [ :each | each changeLandCoverIn: self year ].
 	self growBoars.
 	self disperseBoarsByDensity.
+	self assessDamage.
+	self year > 2018 ifTrue: [ self protectCrops ].
 	self organizeHuntsIn: self year.
 	self huntBoars.
 	self killBoarsOnRoads.

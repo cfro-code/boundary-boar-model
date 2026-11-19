@@ -1,5 +1,5 @@
 "
-I am a hunting unit, the territory of a local hunting group, named by its number in the plot table, or 'NA'. My `huntingGroup` hunts on me, and I record the `bags` of the driven hunts on my plots for the last ten years. See `BBTerritory`.
+I am a hunting unit, the territory of a local hunting group, named by its number in the plot table, or 'NA'. My `huntingGroup` hunts on me, and I record the `bags` of the driven hunts on my plots for the last ten years, and the mean damage of the farmers on my plots. See `BBTerritory`.
 "
 Class {
 	#name : 'BBHuntingUnit',
@@ -37,6 +37,16 @@ BBHuntingUnit >> initialize [
 
 	super initialize.
 	bags := OrderedCollection new
+]
+
+{ #category : 'accessing' }
+BBHuntingUnit >> meanFarmerDamage [
+	"Answer the mean damage of the farmers on my plots, or 0 when there are none"
+
+	| farmers |
+	farmers := self components flatCollect: [ :each | each farmers ].
+	farmers isEmpty ifTrue: [ ^ 0 ].
+	^ (farmers sum: [ :each | each damage ]) / farmers size
 ]
 
 { #category : 'hunting' }

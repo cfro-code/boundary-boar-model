@@ -17,7 +17,8 @@ I am a local hunting group (ACCA or hunting society), which hunts on a hunting u
 
 - `organizeHuntsIn: aYear` makes my yearly decisions.
 - `organizeHuntOn: aPlot` organizes one hunt.
-- `hunts` and `huntablePlots`.
+- `hunts`, `huntablePlots` and `huntingCapacity`.
+- `satisfaction` answers how satisfied I am with my last bag and, as in the original model, with the damage of farmers, which no decision uses.
 
 ```
 group := (model cellAt: 1 at: 1) huntingUnit huntingGroup.
@@ -104,6 +105,13 @@ BBHuntingGroup >> huntablePlots [
 ]
 
 { #category : 'accessing' }
+BBHuntingGroup >> huntingCapacity [
+	"Answer how many plots I can hunt"
+
+	^ self huntablePlots size
+]
+
+{ #category : 'accessing' }
 BBHuntingGroup >> huntingUnit [
 
 	^ huntingUnit
@@ -169,6 +177,21 @@ BBHuntingGroup >> organizeHuntsIn: aYear [
 		:each | each delete ].
 	self moveLeastSuccessfulHunts.
 	self keepHunts: (self targetHuntsIn: aYear among: huntable size)
+]
+
+{ #category : 'accessing' }
+BBHuntingGroup >> satisfaction [
+	"Answer how satisfied I am, from my last bag compared with the last ten years, and, as in the original model, from the damage farmers suffer on my unit"
+
+	| bags meanBag harvest |
+	bags := huntingUnit bags.
+	meanBag := bags isEmpty
+		           ifTrue: [ 0 ]
+		           ifFalse: [ (bags sum: [ :each | each ]) / bags size ].
+	harvest := meanBag <= 0
+		           ifTrue: [ 0 ]
+		           ifFalse: [ bags last / meanBag min: 1 ].
+	^ 0.6 * harvest + (0.4 * huntingUnit meanFarmerDamage) min: 1
 ]
 
 { #category : 'hunting' }
