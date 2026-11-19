@@ -22,6 +22,7 @@ I am a hexagonal plot of the landscape around Montpellier. I know my land cover,
 - `carryingCapacity` and `growthRate` answer K and r, from `habitatQuality` and `habitatPotential`.
 - `boars` answers the number of boars on me, `saturation` how full I am, and `grow` makes them grow for a year.
 - `densityDispersers`, `sendDispersers:` and `settleDispersers` move boars to my neighbours, as `BBModel` orders.
+- `isHuntable` answers whether hunters may hunt on me: I have a habitat, less than half of me is built up, and my city allows hunting. `regulations` answers the hunts on me.
 - `landCover` answers my land cover.
 - `cityTerritory`, `administrativeTerritory` and `huntingUnit` answer my territories.
 - The weights of density and living standard, and the reference carrying capacity and growth rate, are parameters of my class. The values of each type of land cover are constants of my class.
@@ -522,6 +523,12 @@ BBPlot >> changeLandCoverIn: aYear [
 		landCover encroachShrubsBy: self class shrubEncroachmentRate ]
 ]
 
+{ #category : 'hunting' }
+BBPlot >> city [
+
+	^ self cityTerritory city
+]
+
 { #category : 'accessing' }
 BBPlot >> cityName [
 
@@ -661,6 +668,15 @@ BBPlot >> habitatQualityOf: aType [
 		  weights: self class carryingCapacityWeights
 ]
 
+{ #category : 'dispersal' }
+BBPlot >> huntingDispersers [
+	"Answer how many boars the hunts, stands and traps on me scare away"
+
+	^ boars * (self regulations
+		   inject: 0
+		   into: [ :sum :each | sum + each dispersionPressure ]) min: boars
+]
+
 { #category : 'accessing' }
 BBPlot >> huntingUnit [
 
@@ -725,6 +741,19 @@ BBPlot >> initializeFromRow: aRow [
 		                                               min: 1
 ]
 
+{ #category : 'hunting' }
+BBPlot >> isHuntable [
+
+	^ self isSuitableForHunting and: [ self city isHuntingAllowed ]
+]
+
+{ #category : 'hunting' }
+BBPlot >> isSuitableForHunting [
+	"Answer whether hunters can hunt on me: there must be boars to hunt, and not too many buildings"
+
+	^ self carryingCapacity > 0 and: [ self urbanFraction < 0.5 ]
+]
+
 { #category : 'boars' }
 BBPlot >> isUrban [
 	"Answer whether my main land cover is built up"
@@ -766,6 +795,14 @@ BBPlot >> livingStandardScore [
 		  ifAbsent: [ 0 ]
 ]
 
+{ #category : 'hunting' }
+BBPlot >> loseBoarsKilledBy: someRegulations [
+
+	boars := boars - (someRegulations
+		          inject: 0
+		          into: [ :sum :each | sum + each boarsKilled ]) max: 0
+]
+
 { #category : 'dispersal' }
 BBPlot >> meanVacancyOfNeighbours [
 	"Answer how empty my neighbours are on average, from 0 when they are full to 1 when they are empty"
@@ -780,6 +817,13 @@ BBPlot >> meanVacancyOfNeighbours [
 BBPlot >> receiveDispersers: aNumber [
 
 	arrivingBoars := arrivingBoars + aNumber
+]
+
+{ #category : 'hunting' }
+BBPlot >> regulations [
+	"Answer the hunts, stands and traps on me"
+
+	^ self occupantsOfClass: BBRegulation
 ]
 
 { #category : 'dispersal' }
@@ -838,6 +882,12 @@ BBPlot >> sendDispersers: aNumber [
 BBPlot >> settleDispersers [
 
 	boars := boars - leavingBoars + arrivingBoars max: 0
+]
+
+{ #category : 'hunting' }
+BBPlot >> urbanFraction [
+
+	^ (landCover fractionOf: #City) + (landCover fractionOf: #IndusZone)
 ]
 
 { #category : 'habitat' }

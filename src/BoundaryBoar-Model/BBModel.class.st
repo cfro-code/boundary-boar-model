@@ -7,12 +7,13 @@ I am BOUNDARYBOAR, a model of wild boar populations at the rural-urban interface
 - Group plots into municipalities, administrative territories and hunting units.
 - Know the acorn mast of the current year, the same on every plot.
 - Create one road, highway or river per edge listed in the plot table.
-- Run the yearly schedule of the model, from 1991 to 2028: the acorns of the year and the land cover change, boars grow, then move from crowded plots, all at once, and cars kill some of those living beside roads.
+- Run the yearly schedule of the model, from 1991 to 2028: the acorns of the year and the land cover change, boars grow, then move from crowded plots, all at once, hunting groups organize their driven hunts, hunts and cars kill boars, and hunted boars flee. In 2018, Montpellier bans hunting.
 
 ## Collaborators:
 
 - `BBPlot`: the cells of my grid, in which odd columns are shifted down by half a cell, as in the original.
 - `BBLandCover`: the land cover of each plot.
+- `BBCity` and `BBHuntingGroup`: the managers of the territories.
 - `BBRoad`, `BBHighway` and `BBRiver`: the links on the edges between plots, from one `BBNode` to another at the corners of the edges.
 - `BBCityTerritory`, `BBAdministrativeTerritory` and `BBHuntingUnit`: the territories.
 
@@ -90,6 +91,15 @@ BBModel >> addFeature: aFeatureClass towards: aDirection of: aPlot nodes: someNo
 	neighbour addFeature: feature
 ]
 
+{ #category : 'hunting' }
+BBModel >> applyScenariosIn: aYear [
+	"In 2018, Montpellier bans hunting on its territory, as in the original model"
+
+	aYear = 2018 ifTrue: [
+			((self allEntitiesOfClass: BBCity) detect: [ :each |
+				 each name = 'MONTPELLIER' ]) banHunting ]
+]
+
 { #category : 'initialization' }
 BBModel >> createLinearFeaturesFrom: somePlotRows [
 	"The plot table lists each road, highway or river on both plots of its edge, such as 'RW' for a road and a river. Create one link of each type per edge, from the plot with the lower id, between nodes at the two corners of the edge"
@@ -108,6 +118,20 @@ BBModel >> createLinearFeaturesFrom: somePlotRows [
 										towards: direction
 										of: plot
 										nodes: nodes ] ] ] ]
+]
+
+{ #category : 'initialization' }
+BBModel >> createManagers [
+	"One municipality for each city territory, and one local hunting group for each hunting unit"
+
+	(self allEntitiesOfClass: BBCityTerritory) do: [ :each |
+			each city: ((self newEntity: BBCity)
+					 territory: each;
+					 yourself) ].
+	(self allEntitiesOfClass: BBHuntingUnit) do: [ :each |
+			each huntingGroup: ((self newEntity: BBHuntingGroup)
+					 huntingUnit: each;
+					 yourself) ]
 ]
 
 { #category : 'initialization' }
@@ -146,9 +170,26 @@ BBModel >> disperseBoarsByDensity [
 ]
 
 { #category : 'boars' }
+BBModel >> disperseBoarsByHunting [
+
+	self disperseBoars: [ :plot | plot huntingDispersers ]
+]
+
+{ #category : 'boars' }
 BBModel >> growBoars [
 
 	self cells do: [ :each | each grow ]
+]
+
+{ #category : 'hunting' }
+BBModel >> huntBoars [
+	"Every driven hunt kills its share of the boars of its plot, from the numbers before the hunts"
+
+	(self allEntitiesOfClass: BBDrivenHunt) do: [ :each | each hunt ].
+	(self allEntitiesOfClass: BBHuntingUnit) do: [ :each |
+		each recordBag ].
+	self cells do: [ :each |
+		each loseBoarsKilledBy: (each occupantsOfClass: BBDrivenHunt) ]
 ]
 
 { #category : 'initialization' }
@@ -163,7 +204,7 @@ BBModel >> initMontpellier [
 
 { #category : 'initialization' }
 BBModel >> initWithPlotTable: somePlotRows coverTable: someCoverRows [
-	"Create the grid, the plots, their land cover, the roads, highways and rivers between them and their boars from the rows of the plot and cover tables, which give one row per plot"
+	"Create the grid, the plots, their land cover, the roads, highways and rivers between them, their boars and the people who manage them, from the rows of the plot and cover tables, which give one row per plot"
 
 	acornAvailability := self acornSeries first.
 	self
@@ -179,7 +220,8 @@ BBModel >> initWithPlotTable: somePlotRows coverTable: someCoverRows [
 		(self plotInRow: row) landCover: (BBLandCover fromRow: row) ].
 	self createTerritories.
 	self createLinearFeaturesFrom: somePlotRows.
-	self cells do: [ :each | each initializeBoars ]
+	self cells do: [ :each | each initializeBoars ].
+	self createManagers
 ]
 
 { #category : 'boars' }
@@ -202,6 +244,13 @@ BBModel >> nodeAt: aCorner of: aPlot in: someNodes [
 				  (self newEntity: BBNode locatedAt: aPlot)
 					  positionInCell: position;
 					  yourself ]
+]
+
+{ #category : 'hunting' }
+BBModel >> organizeHuntsIn: aYear [
+
+	(self allEntitiesOfClass: BBHuntingGroup) do: [ :each |
+		each organizeHuntsIn: aYear ]
 ]
 
 { #category : 'private' }
@@ -235,10 +284,14 @@ BBModel >> step [
 	<control>
 	self resetRoadCollisions.
 	self updateAcorns.
+	self applyScenariosIn: self year.
 	self cells do: [ :each | each changeLandCoverIn: self year ].
 	self growBoars.
 	self disperseBoarsByDensity.
-	self killBoarsOnRoads
+	self organizeHuntsIn: self year.
+	self huntBoars.
+	self killBoarsOnRoads.
+	self disperseBoarsByHunting
 ]
 
 { #category : 'private' }
