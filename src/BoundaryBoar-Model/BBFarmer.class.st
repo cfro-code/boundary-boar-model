@@ -4,7 +4,7 @@ I am a farmer, who farms part of the farmland of one plot. Boars that live in th
 ## Responsibility:
 
 - Measure each year the damage boars do to my crop, and remember the last three years.
-- Ask for temporary fences after serious damage, install permanent ones after heavy damage if I can afford them, and set up a stand when boars threaten my crop heavily.
+- Ask for temporary fences after serious damage, install permanent ones after heavy damage if I can afford them, and set up a stand when boars threaten my crop heavily, or ask the State services if stands are forbidden to me.
 - Expose the boars of my part of the farmland to the stands I organize.
 
 ## Collaborators:
@@ -16,7 +16,7 @@ I am a farmer, who farms part of the farmland of one plot. Boars that live in th
 ## Public API and Key Messages
 
 - `assessDamage` measures the damage of the year; `damage` answers it, from 0 to 1.
-- `needsTemporaryFences`, `considerPermanentFences` and `considerStand` are my yearly decisions.
+- `needsTemporaryFences`, `considerPermanentFences`, `considerStand` and `considerAskingTheDDTM` are my yearly decisions. `forbidStands` is a scenario: as in the original model, stands are allowed by default, so farmers ask the State services only when they are forbidden.
 - `surface` answers the fraction of my plot I farm.
 - My subclasses give my `crop`, my damage sensitivity and my probability of affording permanent fences, as parameters of their class. The efficiency of fences and the number of farmers per plot are parameters of my class.
 
@@ -201,10 +201,21 @@ BBFarmer >> boarPressure [
 ]
 
 { #category : 'protecting crops' }
-BBFarmer >> boarsExposedToStands [
-	"Answer the boars that a stand I organize can shoot: those in my part of the farmland"
+BBFarmer >> boarsExposedToStandOn: aPlot [
+	"My stands, on my plot, shoot among the boars of my part of the farmland"
 
-	^ self cell farmlandBoars * surface
+	^ aPlot farmlandBoars * surface
+]
+
+{ #category : 'protecting crops' }
+BBFarmer >> considerAskingTheDDTM [
+	"Ask the State services to intervene when boars threaten my crop heavily, and I have neither permanent fences nor a stand of my own"
+
+	(self isUnderHeavyPressure and: [
+			 hasPermanentFences not and: [
+					 (self cell regulations anySatisfy: [ :each |
+						  each organizer == self ]) not ] ]) ifTrue: [
+		self cormasModel ddtm requestInterventionFor: self ]
 ]
 
 { #category : 'protecting crops' }
@@ -241,6 +252,12 @@ BBFarmer >> decideWhetherICanAffordPermanentFences [
 
 	canInstallPermanentFences := self random
 	                             < self class fencingProbability
+]
+
+{ #category : 'protecting crops' }
+BBFarmer >> forbidStands [
+
+	areStandsAuthorized := false
 ]
 
 { #category : 'accessing' }
@@ -286,6 +303,13 @@ BBFarmer >> isUnderHeavyPressure [
 	| maximum |
 	maximum := self maximumBoarPressure.
 	^ maximum > 0 and: [ self boarPressure / maximum > 0.7 ]
+]
+
+{ #category : 'protecting crops' }
+BBFarmer >> keepsItsRegulations [
+	"My stands last one year"
+
+	^ false
 ]
 
 { #category : 'damage' }

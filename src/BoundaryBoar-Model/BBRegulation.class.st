@@ -1,5 +1,5 @@
 "
-I am an action against boars on one plot: a driven hunt for now, and later stands and traps. I kill a share of the boars of my plot, my lethality, and scare away another share, my dispersion pressure.
+I am an action against boars on one plot: a driven hunt, a stand or a trap. I kill a share of the boars of my plot, my lethality, and scare away another share, my dispersion pressure.
 
 ## Responsibility:
 
@@ -10,13 +10,14 @@ I am an action against boars on one plot: a driven hunt for now, and later stand
 ## Collaborators:
 
 - `BBPlot`: my plot loses the boars I kill, and the boars I scare away leave it.
-- `BBHuntingGroup` organizes me and moves me.
+- My organizer, a `BBHuntingGroup`, a `BBFarmer` or the `BBDDTM`, tells whether I last from year to year.
 - `BBModel` asks me to hunt every year.
 
 ## Public API and Key Messages
 
 - `hunt` computes the boars I kill, from the boars of my plot before anyone hunts. `BBModel>>huntBoars` then removes them from the plot.
 - `boarsKilled`, `lethality`, `dispersionPressure` and `organizer` answer what I am.
+- `lastsOneYear` answers whether I am removed at the start of next year: only the hunts of hunting groups stay.
 
 ```
 hunt := aHuntingGroup organizeHuntOn: aPlot.
@@ -43,6 +44,17 @@ Class {
 	#category : 'BoundaryBoar-Model',
 	#package : 'BoundaryBoar-Model'
 }
+
+{ #category : 'aspects' }
+BBRegulation >> aspectOrganizer: look [
+	"My default look, in one color for each kind of organizer: hunting groups, farmers and the State services"
+
+	<aspect>
+	self aspectDefault: look.
+	look colorGroupedBy: ((organizer isKindOf: BBFarmer)
+			 ifTrue: [ BBFarmer ]
+			 ifFalse: [ organizer class ])
+]
 
 { #category : 'accessing' }
 BBRegulation >> boarsKilled [
@@ -76,6 +88,12 @@ BBRegulation >> initialize [
 
 	super initialize.
 	boarsKilled := 0
+]
+
+{ #category : 'hunting' }
+BBRegulation >> lastsOneYear [
+
+	^ organizer keepsItsRegulations not
 ]
 
 { #category : 'accessing' }

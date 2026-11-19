@@ -16,6 +16,7 @@ I am a municipality, which manages a city territory. When the residents of my ne
 
 - `name` answers the name of my territory, such as 'MONTPELLIER'.
 - `isHuntingAllowed` and `banHunting`.
+- `requestInterventions` asks the State services to intervene on my town plots overrun by boars, above a threshold that is a parameter of my class.
 - `decidePolicy` makes my yearly choice, and `applyFoodPolicies` sets waste and feeding on my plots.
 - `wastePolicy`, `feedingPolicy` and `brushcuttingCampaigns` answer what I have done.
 - The weight of costs and the brush-cutting settings are parameters of my class.
@@ -38,7 +39,8 @@ Class {
 		'policyCostWeight',
 		'brushcuttingCut',
 		'brushcuttingThreshold',
-		'brushcuttingShare'
+		'brushcuttingShare',
+		'interventionThreshold'
 	],
 	#category : 'BoundaryBoar-Model',
 	#package : 'BoundaryBoar-Model'
@@ -84,6 +86,20 @@ BBCity class >> brushcuttingThreshold [
 BBCity class >> brushcuttingThreshold: aNumber [
 
 	brushcuttingThreshold := aNumber
+]
+
+{ #category : 'parameters' }
+BBCity class >> interventionThreshold [
+	"How full of boars a town plot must be for its city to ask the State services to intervene"
+
+	<parameterFloatMin: 0 max: 1 default: 0.9>
+	^ interventionThreshold
+]
+
+{ #category : 'parameters' }
+BBCity class >> interventionThreshold: aNumber [
+
+	interventionThreshold := aNumber
 ]
 
 { #category : 'parameters' }
@@ -282,6 +298,16 @@ BBCity >> raiseWastePolicy [
 BBCity >> raiseWastePolicyTo: aLevel [
 
 	wastePolicy := wastePolicy max: aLevel
+]
+
+{ #category : 'policies' }
+BBCity >> requestInterventions [
+	"Ask the State services to intervene on each town plot whose association finds it overrun by boars"
+
+	self plots do: [ :plot |
+			plot associations do: [ :each |
+					each perceivedSaturation > self class interventionThreshold
+						ifTrue: [ self cormasModel ddtm requestInterventionOn: plot ] ] ]
 ]
 
 { #category : 'accessing' }

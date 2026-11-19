@@ -504,6 +504,18 @@ BBPlot >> aspectHuntingUnit: look [
 ]
 
 { #category : 'aspects' }
+BBPlot >> aspectInterventions: look [
+	"How many times the State services intervened on me"
+
+	<aspect>
+	look
+		colorShadeOf: Color blue
+		forValue: (self cormasModel ddtm interventionsOn: self)
+		from: 0
+		to: 5
+]
+
+{ #category : 'aspects' }
 BBPlot >> aspectMunicipality: look [
 
 	<aspect>

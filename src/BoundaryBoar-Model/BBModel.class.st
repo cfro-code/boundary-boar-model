@@ -7,13 +7,13 @@ I am BOUNDARYBOAR, a model of wild boar populations at the rural-urban interface
 - Group plots into municipalities, administrative territories and hunting units.
 - Know the acorn mast of the current year, the same on every plot.
 - Create one road, highway or river per edge listed in the plot table.
-- Run the yearly schedule of the model, from 1991 to 2028: the acorns of the year and the land cover change, boars grow, then move from crowded plots, all at once, associations measure the satisfaction of residents, farmers measure their damage, and from 2019 cities choose policies and farmers protect their crops, hunting groups organize their driven hunts, hunts, stands and cars kill boars, and hunted boars flee. In 2018, Montpellier bans hunting.
+- Run the yearly schedule of the model, from 1991 to 2028: the acorns of the year and the land cover change, boars grow, then move from crowded plots, all at once, associations measure the satisfaction of residents, farmers measure their damage, and from 2019 cities choose policies, cities and farmers ask the State services to intervene, farmers protect their crops and the State services intervene, hunting groups organize their driven hunts, hunts, stands and cars kill boars, and hunted boars flee. In 2018, Montpellier bans hunting.
 
 ## Collaborators:
 
 - `BBPlot`: the cells of my grid, in which odd columns are shifted down by half a cell, as in the original.
 - `BBLandCover`: the land cover of each plot.
-- `BBCity` and `BBHuntingGroup`: the managers of the territories, and `BBHuntingFederation`.
+- `BBCity` and `BBHuntingGroup`: the managers of the territories, and `BBHuntingFederation` and `BBDDTM`, the hunting federation and the State services.
 - `BBFarmer`: the farmers of each plot with farmland in 1990.
 - `BBAssociation`: the neighbourhood associations of the dense towns of 2018, and `BBAdministrativeEntity`: the inter-municipal bodies.
 - `BBRoad`, `BBHighway` and `BBRiver`: the links on the edges between plots, from one `BBNode` to another at the corners of the edges.
@@ -195,7 +195,7 @@ BBModel >> createLinearFeaturesFrom: somePlotRows [
 
 { #category : 'initialization' }
 BBModel >> createManagers [
-	"One municipality for each city territory, one inter-municipal body for each administrative territory, one local hunting group for each hunting unit, the hunting federation, the farmers of each plot and the neighbourhood associations"
+	"One municipality for each city territory, one inter-municipal body for each administrative territory, one local hunting group for each hunting unit, the hunting federation, the State services, the farmers of each plot and the neighbourhood associations"
 
 	(self allEntitiesOfClass: BBCityTerritory) do: [ :each |
 			each city: ((self newEntity: BBCity)
@@ -208,6 +208,7 @@ BBModel >> createManagers [
 					 huntingUnit: each;
 					 yourself) ].
 	self newEntity: BBHuntingFederation.
+	self newEntity: BBDDTM.
 	self createFarmers.
 	self createAssociations
 ]
@@ -230,6 +231,13 @@ BBModel >> createTerritories: aTerritoryClass groupingPlotsBy: aSelector [
 
 	(self cells groupedBy: aSelector) keysAndValuesDo: [ :name :plots |
 		(self createAggregate: aTerritoryClass from: plots) name: name ]
+]
+
+{ #category : 'hunting' }
+BBModel >> ddtm [
+	"The State services of the department"
+
+	^ (self allEntitiesOfClass: BBDDTM) first
 ]
 
 { #category : 'boars' }
@@ -261,12 +269,13 @@ BBModel >> growBoars [
 
 { #category : 'hunting' }
 BBModel >> huntBoars [
-	"Driven hunts kill their share of the boars of their plot, from the numbers before the hunts. Then stands kill their share of what is left"
+	"Driven hunts kill their share of the boars of their plot, from the numbers before the hunts. Then stands, then traps, kill their share of what is left"
 
 	self huntBoarsWith: BBDrivenHunt.
 	(self allEntitiesOfClass: BBHuntingUnit) do: [ :each |
 		each recordBag ].
-	self huntBoarsWith: BBStand
+	self huntBoarsWith: BBStand.
+	self huntBoarsWith: BBTrapping
 ]
 
 { #category : 'hunting' }
@@ -355,7 +364,7 @@ BBModel >> plotInRow: aRow [
 
 { #category : 'farming' }
 BBModel >> protectCrops [
-	"Farmers ask the hunting federation for temporary fences, which it gives the most damaged first. Then those without temporary fences may install permanent ones, and those under heavy pressure hunt on their plot"
+	"Farmers ask the hunting federation for temporary fences, which it gives the most damaged first. Then those without temporary fences may install permanent ones, those under heavy pressure hunt on their plot, and those who cannot ask the State services"
 
 	| farmers |
 	farmers := self allEntitiesOfClass: BBFarmer.
@@ -364,14 +373,23 @@ BBModel >> protectCrops [
 		(farmers select: [ :each | each needsTemporaryFences ]).
 	farmers do: [ :each |
 			each considerPermanentFences.
-			each considerStand ]
+			each considerStand.
+			each considerAskingTheDDTM ]
 ]
 
 { #category : 'hunting' }
-BBModel >> removeStands [
-	"Stands last one year"
+BBModel >> removeOneYearRegulations [
+	"Stands, traps and the hunts of the State services last one year. Hunting groups keep their hunts"
 
-	(self allEntitiesOfClass: BBStand) do: [ :each | each delete ]
+	((self allEntitiesOfClass: BBRegulation) select: [ :each |
+		 each lastsOneYear ]) do: [ :each | each delete ]
+]
+
+{ #category : 'hunting' }
+BBModel >> requestInterventions [
+
+	(self allEntitiesOfClass: BBCity) do: [ :each |
+		each requestInterventions ]
 ]
 
 { #category : 'boars' }
@@ -394,7 +412,7 @@ BBModel >> step [
 	"One year. People take action against boars from 2019"
 
 	<control>
-	self removeStands.
+	self removeOneYearRegulations.
 	self resetRoadCollisions.
 	self updateAcorns.
 	self applyScenariosIn: self year.
@@ -405,7 +423,9 @@ BBModel >> step [
 	self assessDamage.
 	self year > 2018 ifTrue: [
 			self applyCityPolicies.
-			self protectCrops ].
+			self requestInterventions.
+			self protectCrops.
+			self ddtm intervene ].
 	self organizeHuntsIn: self year.
 	self huntBoars.
 	self killBoarsOnRoads.

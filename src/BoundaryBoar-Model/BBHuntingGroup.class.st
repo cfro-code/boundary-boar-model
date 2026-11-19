@@ -146,6 +146,13 @@ BBHuntingGroup >> keepHunts: aNumber [
 ]
 
 { #category : 'hunting' }
+BBHuntingGroup >> keepsItsRegulations [
+	"My driven hunts last from year to year"
+
+	^ true
+]
+
+{ #category : 'hunting' }
 BBHuntingGroup >> moveLeastSuccessfulHunts [
 	"Move the hunts that killed the fewest boars last year to the huntable plots with the most boars where I do not hunt yet"
 

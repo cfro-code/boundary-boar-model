@@ -54,6 +54,6 @@ BBStand >> aspectDefault: look [
 BBStand >> hunt [
 	"Kill my share of the boars my organizer exposes to me, at most all the boars of my plot"
 
-	boarsKilled := organizer boarsExposedToStands * self lethality min:
-		               self cell boars
+	boarsKilled := (organizer boarsExposedToStandOn: self cell)
+	               * self lethality min: self cell boars
 ]
