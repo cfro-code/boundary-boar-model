@@ -7,7 +7,7 @@ I am a hexagonal plot of the landscape around Montpellier. I know my land cover,
 - Know how accessible household waste is and how much residents feed boars, now and at the start.
 - Know the number of boars I can hold and their growth rate, from my land cover, my anthropogenic food and the acorns of the year.
 - Hold my boars: where they live in 1990, how they grow, and how many leave for my neighbours when I am crowded.
-- Hold my `BBLandCover` and answer the territories I belong to.
+- Hold my `BBLandCover`, change it every year, and answer the territories I belong to.
 
 ## Collaborators:
 
@@ -80,7 +80,8 @@ Class {
 		'referenceGrowthRate',
 		'densityDependence',
 		'maximumDispersalRate',
-		'dispersalSteepness'
+		'dispersalSteepness',
+		'shrubEncroachmentRate'
 	],
 	#category : 'BoundaryBoar-Model',
 	#package : 'BoundaryBoar-Model'
@@ -282,6 +283,20 @@ BBPlot class >> referenceGrowthRate [
 BBPlot class >> referenceGrowthRate: aNumber [
 
 	referenceGrowthRate := aNumber
+]
+
+{ #category : 'parameters' }
+BBPlot class >> shrubEncroachmentRate [
+	"The share of urban grass that shrubs turn into trees each year from 2018"
+
+	<parameterFloatMin: 0 max: 0.2 default: 0>
+	^ shrubEncroachmentRate
+]
+
+{ #category : 'parameters' }
+BBPlot class >> shrubEncroachmentRate: aNumber [
+
+	shrubEncroachmentRate := aNumber
 ]
 
 { #category : 'parameters' }
@@ -497,6 +512,14 @@ BBPlot >> carryingCapacity [
 	"Answer the number of boars I can hold"
 
 	^ self class referenceCarryingCapacity * self habitatQuality
+]
+
+{ #category : 'land cover' }
+BBPlot >> changeLandCoverIn: aYear [
+
+	landCover changeIn: aYear.
+	aYear >= 2018 ifTrue: [
+		landCover encroachShrubsBy: self class shrubEncroachmentRate ]
 ]
 
 { #category : 'accessing' }

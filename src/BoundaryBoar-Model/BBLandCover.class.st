@@ -5,6 +5,7 @@ I am the land cover of one plot: the fraction of its area under each type of cov
 
 - Read the observed fractions of a plot from a row of the cover table, with decimal commas and empty fields as zero.
 - Know the current fraction of each type and which type covers the most area.
+- Change each year: towards the next observed map until 2018, becoming that map in each observed year, then at the speed of 2012 to 2018.
 - Know the trees and grass inside urban fabric, and the shares of vineyards, grain and vegetables in farmland.
 
 ## Collaborators:
@@ -18,6 +19,7 @@ I am the land cover of one plot: the fraction of its area under each type of cov
 - `fractionOf: #Forest` answers the current fraction of a type.
 - `fractionOf: #City in: 2018` answers an observed fraction.
 - `mainCover` answers the type with the largest fraction.
+- `changeIn: 2019` changes the fractions for one year, and `encroachShrubsBy:` turns some urban grass into trees.
 - `urbanTrees`, `urbanGrass` and `agriculturalShareOf: #wine` answer the vegetation and crops.
 - `urbanVegetationScore` answers how much urban vegetation makes urban fabric a habitat, between 0 and 1.
 
@@ -91,6 +93,49 @@ BBLandCover >> agriculturalShareOf: aCrop [
 	^ agriculturalShares at: aCrop
 ]
 
+{ #category : 'changing' }
+BBLandCover >> changeBy: someSpeeds [
+	"Add each speed to its fraction, between 0 and 1. If the plot is then more than full, the types that grow give the excess back, in proportion to their growth"
+
+	| changed excess growing totalGrowth |
+	changed := (self class types collect: [ :type |
+			            type
+			            ->
+			            ((self fractionOf: type) + (someSpeeds at: type)
+				             min: 1
+				             max: 0) ]) asDictionary.
+	excess := (changed values sum: [ :each | each ]) - 1.
+	excess > 0 ifTrue: [
+			growing := self class types select: [ :type |
+				           (someSpeeds at: type) > 0 ].
+			totalGrowth := growing sum: [ :type | someSpeeds at: type ].
+			growing do: [ :type |
+					changed
+						at: type
+						put:
+						(changed at: type)
+						- (excess * (someSpeeds at: type) / totalGrowth) ] ].
+	fractions := changed
+]
+
+{ #category : 'changing' }
+BBLandCover >> changeIn: aYear [
+	"Change for one year: towards the next observed map until 2018, then at the speed of 2012 to 2018. In an observed year, become that map"
+
+	self changeBy: (self speedsIn: aYear).
+	(self class observedYears includes: aYear) ifTrue: [
+		fractions := (history at: aYear) copy ]
+]
+
+{ #category : 'changing' }
+BBLandCover >> encroachShrubsBy: aRate [
+	"Where urban grass is still more than a fifth of what it was, shrubs turn some of it into trees"
+
+	urbanGrass > (0.2 * initialUrbanGrass) ifFalse: [ ^ self ].
+	urbanTrees := urbanTrees + aRate.
+	urbanGrass := urbanGrass - aRate max: 0
+]
+
 { #category : 'accessing' }
 BBLandCover >> fractionOf: aType [
 
@@ -140,6 +185,25 @@ BBLandCover >> mainCover [
 	"Answer the type with the largest fraction"
 
 	^ self class types detectMax: [ :each | self fractionOf: each ]
+]
+
+{ #category : 'changing' }
+BBLandCover >> speedsIn: aYear [
+	"Answer the yearly change of each type between the observed years around aYear, or the last two after 2018"
+
+	| years index start end |
+	years := self class observedYears.
+	index := years findFirst: [ :each | each >= aYear ].
+	index = 0 ifTrue: [ index := years size ].
+	index := index max: 2.
+	start := years at: index - 1.
+	end := years at: index.
+	^ (self class types collect: [ :type |
+			   type
+			   ->
+				   ((self fractionOf: type in: end)
+				    - (self fractionOf: type in: start) / (end - start)) ])
+		  asDictionary
 ]
 
 { #category : 'accessing' }

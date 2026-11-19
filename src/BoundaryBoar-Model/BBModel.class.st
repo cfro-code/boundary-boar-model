@@ -7,7 +7,7 @@ I am BOUNDARYBOAR, a model of wild boar populations at the rural-urban interface
 - Group plots into municipalities, administrative territories and hunting units.
 - Know the acorn mast of the current year, the same on every plot.
 - Create one road, highway or river per edge listed in the plot table.
-- Run the yearly schedule of the model: boars grow, then move from crowded plots, all at once, and cars kill some of those living beside roads.
+- Run the yearly schedule of the model, from 1991 to 2028: the acorns of the year and the land cover change, boars grow, then move from crowded plots, all at once, and cars kill some of those living beside roads.
 
 ## Collaborators:
 
@@ -19,6 +19,7 @@ I am BOUNDARYBOAR, a model of wild boar populations at the rural-urban interface
 ## Public API and Key Messages
 
 - `initMontpellier` creates the landscape of 1990 from `plotMtpBis.csv` and `coverMtpBis.csv`.
+- `year` answers the year of the current step, 1990 plus the time step. The acorn series stops in 2028, so a simulation runs at most 38 steps.
 - `initWithPlotTable:coverTable:` creates a landscape from tables given as one dictionary per row, from column names to texts.
 
 ```
@@ -233,6 +234,8 @@ BBModel >> step [
 
 	<control>
 	self resetRoadCollisions.
+	self updateAcorns.
+	self cells do: [ :each | each changeLandCoverIn: self year ].
 	self growBoars.
 	self disperseBoarsByDensity.
 	self killBoarsOnRoads
@@ -255,4 +258,17 @@ BBModel >> tableNamed: aFileName [
 BBModel >> totalBoars [
 
 	^ self cells sum: [ :each | each boars ]
+]
+
+{ #category : 'acorns' }
+BBModel >> updateAcorns [
+
+	acornAvailability := self acornSeries at: self currentTimeStep + 1
+]
+
+{ #category : 'acorns' }
+BBModel >> year [
+	"The year of the current step: the simulation starts in 1990"
+
+	^ 1990 + self currentTimeStep
 ]
