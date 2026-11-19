@@ -23,6 +23,7 @@ I am a hexagonal plot of the landscape around Montpellier. I know my land cover,
 - `boars` answers the number of boars on me, `saturation` how full I am, and `grow` makes them grow for a year.
 - `densityDispersers`, `sendDispersers:` and `settleDispersers` move boars to my neighbours, as `BBModel` orders.
 - `isHuntable` answers whether hunters may hunt on me: I have a habitat, less than half of me is built up, and my city allows hunting. `regulations` answers the hunts and stands on me.
+- `associations` answers my neighbourhood associations, `urbanSaturation` how full of boars my town is, and `projectedUrbanBoars` how many it will have next year; `limitWasteBy:` and `limitFeedingBy:` apply city policies.
 - `farmers` answers my farmers, `farmlandBoars` how many of my boars live in my farmland, and `maximumFarmlandBoars` how many could.
 - `landCover` answers my land cover.
 - `cityTerritory`, `administrativeTerritory` and `huntingUnit` answer my territories.
@@ -84,7 +85,8 @@ Class {
 		'maximumDispersalRate',
 		'dispersalSteepness',
 		'shrubEncroachmentRate',
-		'acornDamageReduction'
+		'acornDamageReduction',
+		'acornUrbanReduction'
 	],
 	#category : 'BoundaryBoar-Model',
 	#package : 'BoundaryBoar-Model'
@@ -102,6 +104,20 @@ BBPlot class >> acornDamageReduction [
 BBPlot class >> acornDamageReduction: aNumber [
 
 	acornDamageReduction := aNumber
+]
+
+{ #category : 'parameters' }
+BBPlot class >> acornUrbanReduction [
+	"How much less boars come into towns in a year of full acorn mast"
+
+	<parameterFloatMin: 0 max: 1 default: 0.7>
+	^ acornUrbanReduction
+]
+
+{ #category : 'parameters' }
+BBPlot class >> acornUrbanReduction: aNumber [
+
+	acornUrbanReduction := aNumber
 ]
 
 { #category : 'habitat' }
@@ -394,6 +410,18 @@ BBPlot >> aspectBoars: look [
 ]
 
 { #category : 'aspects' }
+BBPlot >> aspectBrushcutting: look [
+	"How many brush-cutting campaigns my city has run"
+
+	<aspect>
+	look
+		colorShadeOf: (self class coverColors at: #Forest)
+		forValue: self city brushcuttingCampaigns
+		from: 0
+		to: 5
+]
+
+{ #category : 'aspects' }
 BBPlot >> aspectCarryingCapacity: look [
 
 	<aspect>
@@ -430,6 +458,18 @@ BBPlot >> aspectFeedingIntensity: look [
 	look
 		colorShadeOf: Color red
 		forValue: feedingIntensity
+		from: 0
+		to: 1
+]
+
+{ #category : 'aspects' }
+BBPlot >> aspectFeedingPolicy: look [
+	"How much my city has cut the feeding of boars by residents"
+
+	<aspect>
+	look
+		colorShadeOf: Color red
+		forValue: self city feedingPolicy
 		from: 0
 		to: 1
 ]
@@ -510,6 +550,24 @@ BBPlot >> aspectWasteAccessibility: look [
 		forValue: wasteAccessibility
 		from: 0
 		to: 1
+]
+
+{ #category : 'aspects' }
+BBPlot >> aspectWastePolicy: look [
+	"How much my city has cut access to household waste"
+
+	<aspect>
+	look
+		colorShadeOf: Color orange
+		forValue: self city wastePolicy
+		from: 0
+		to: 1
+]
+
+{ #category : 'town' }
+BBPlot >> associations [
+
+	^ self occupantsOfClass: BBAssociation
 ]
 
 { #category : 'dispersal' }
@@ -822,6 +880,20 @@ BBPlot >> landCover: aLandCover [
 	landCover := aLandCover
 ]
 
+{ #category : 'town' }
+BBPlot >> limitFeedingBy: aPolicy [
+	"Reduce the feeding of boars by residents by the share aPolicy, from what it was before any policy"
+
+	feedingIntensity := initialFeedingIntensity * (1 - aPolicy)
+]
+
+{ #category : 'town' }
+BBPlot >> limitWasteBy: aPolicy [
+	"Reduce access to household waste by the share aPolicy, from what it was before any policy"
+
+	wasteAccessibility := initialWasteAccessibility * (1 - aPolicy)
+]
+
 { #category : 'food' }
 BBPlot >> livingStandardScore [
 	"How much the living standard leaves waste accessible to boars, between 0 and 1: the poorer, the more"
@@ -862,6 +934,41 @@ BBPlot >> meanVacancyOfNeighbours [
 	neighbours := self neighbourhood.
 	neighbours isEmpty ifTrue: [ ^ 0 ].
 	^ (neighbours sum: [ :each | 1 - each saturation ]) / neighbours size
+]
+
+{ #category : 'town' }
+BBPlot >> projectedUrbanBoars [
+	"Answer how many boars my town will have next year, if they grow as they do now. Unlike growth, the projection can go below zero, as in the original model"
+
+	| capacity nextYear |
+	capacity := self carryingCapacity.
+	nextYear := capacity <= 0
+		            ifTrue: [ boars ]
+		            ifFalse: [
+				            boars + (self growthRate * boars
+				             *
+				             (1
+				              -
+				              (boars / capacity raisedTo:
+					               self class densityDependence))) ].
+	^ self urbanShareOf: nextYear
+]
+
+{ #category : 'town' }
+BBPlot >> projectedUrbanBoarsAfter: aChangeBlock [
+	"Answer the projected urban boars if aChangeBlock changed my food or my urban vegetation. I am left as I was"
+
+	| waste feeding trees grass |
+	waste := wasteAccessibility.
+	feeding := feedingIntensity.
+	trees := landCover urbanTrees.
+	grass := landCover urbanGrass.
+	^ [
+		  aChangeBlock value: self.
+		  self projectedUrbanBoars ] ensure: [
+			  wasteAccessibility := waste.
+			  feedingIntensity := feeding.
+			  landCover urbanTrees: trees grass: grass ]
 ]
 
 { #category : 'dispersal' }
@@ -939,6 +1046,35 @@ BBPlot >> settleDispersers [
 BBPlot >> urbanFraction [
 
 	^ (landCover fractionOf: #City) + (landCover fractionOf: #IndusZone)
+]
+
+{ #category : 'town' }
+BBPlot >> urbanSaturation [
+	"Answer how full of boars my town is, compared with how many it could hold. It is 0 when my town holds none"
+
+	| maximum |
+	maximum := self urbanShareOf: self carryingCapacity.
+	maximum <= 0 ifTrue: [ ^ 0 ].
+	^ (self urbanShareOf: boars) / maximum
+]
+
+{ #category : 'town' }
+BBPlot >> urbanShareOf: aNumberOfBoars [
+	"Answer how many of aNumberOfBoars on me would be in my town, in proportion to what the city adds to my habitat quality, and fewer in a good acorn year"
+
+	| quality |
+	quality := self habitatQuality.
+	quality <= 0 ifTrue: [ ^ 0 ].
+	^ aNumberOfBoars * (self habitatQualityOf: #City) / quality
+	  * self urbanUseFactor
+]
+
+{ #category : 'town' }
+BBPlot >> urbanUseFactor [
+	"Answer how much boars use towns this year: less when there are many acorns in the woods"
+
+	^ 1
+	  - (self class acornUrbanReduction * self acornAvailability squared)
 ]
 
 { #category : 'habitat' }

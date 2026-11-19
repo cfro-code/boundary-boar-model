@@ -7,7 +7,7 @@ I am BOUNDARYBOAR, a model of wild boar populations at the rural-urban interface
 - Group plots into municipalities, administrative territories and hunting units.
 - Know the acorn mast of the current year, the same on every plot.
 - Create one road, highway or river per edge listed in the plot table.
-- Run the yearly schedule of the model, from 1991 to 2028: the acorns of the year and the land cover change, boars grow, then move from crowded plots, all at once, farmers measure their damage, and from 2019 protect their crops, hunting groups organize their driven hunts, hunts, stands and cars kill boars, and hunted boars flee. In 2018, Montpellier bans hunting.
+- Run the yearly schedule of the model, from 1991 to 2028: the acorns of the year and the land cover change, boars grow, then move from crowded plots, all at once, associations measure the satisfaction of residents, farmers measure their damage, and from 2019 cities choose policies and farmers protect their crops, hunting groups organize their driven hunts, hunts, stands and cars kill boars, and hunted boars flee. In 2018, Montpellier bans hunting.
 
 ## Collaborators:
 
@@ -15,6 +15,7 @@ I am BOUNDARYBOAR, a model of wild boar populations at the rural-urban interface
 - `BBLandCover`: the land cover of each plot.
 - `BBCity` and `BBHuntingGroup`: the managers of the territories, and `BBHuntingFederation`.
 - `BBFarmer`: the farmers of each plot with farmland in 1990.
+- `BBAssociation`: the neighbourhood associations of the dense towns of 2018, and `BBAdministrativeEntity`: the inter-municipal bodies.
 - `BBRoad`, `BBHighway` and `BBRiver`: the links on the edges between plots, from one `BBNode` to another at the corners of the edges.
 - `BBCityTerritory`, `BBAdministrativeTerritory` and `BBHuntingUnit`: the territories.
 
@@ -92,6 +93,17 @@ BBModel >> addFeature: aFeatureClass towards: aDirection of: aPlot nodes: someNo
 	neighbour addFeature: feature
 ]
 
+{ #category : 'towns' }
+BBModel >> applyCityPolicies [
+	"Cities whose residents complain choose a policy. Inter-municipal bodies may ban hunting or have their cities follow each other. Then waste and feeding follow the policies"
+
+	(self allEntitiesOfClass: BBCity) do: [ :each | each decidePolicy ].
+	(self allEntitiesOfClass: BBAdministrativeEntity) do: [ :each |
+		each applyPolicies ].
+	(self allEntitiesOfClass: BBCity) do: [ :each |
+		each applyFoodPolicies ]
+]
+
 { #category : 'hunting' }
 BBModel >> applyScenariosIn: aYear [
 	"In 2018, Montpellier bans hunting on its territory, as in the original model"
@@ -105,6 +117,34 @@ BBModel >> applyScenariosIn: aYear [
 BBModel >> assessDamage [
 
 	(self allEntitiesOfClass: BBFarmer) do: [ :each | each assessDamage ]
+]
+
+{ #category : 'towns' }
+BBModel >> assessSatisfaction [
+
+	(self allEntitiesOfClass: BBAssociation) do: [ :each |
+		each assessSatisfaction ]
+]
+
+{ #category : 'initialization' }
+BBModel >> createAssociations [
+	"One neighbourhood association on each plot that was more than 30 % city in 2018, even when the simulation starts in 1990. Residents of Montpellier Méditerranée Métropole like boars more than elsewhere"
+
+	(self cells select: [ :each |
+		 (each landCover fractionOf: #City in: 2018) > 0.3 ]) do: [ :plot |
+			(self newEntity: BBAssociation locatedAt: plot) profile:
+				(plot administrativeName = 'MMM'
+					 ifTrue: [
+							 {
+								 (#coexistence -> 0.5).
+								 (#ambivalent -> 0.2).
+								 (#worried -> 0.3) } asDictionary ]
+					 ifFalse: [
+							 {
+								 (#coexistence -> 0.1).
+								 (#ambivalent -> 0.5).
+								 (#worried -> 0.4) } asDictionary ]) ].
+	self assessSatisfaction
 ]
 
 { #category : 'initialization' }
@@ -155,18 +195,21 @@ BBModel >> createLinearFeaturesFrom: somePlotRows [
 
 { #category : 'initialization' }
 BBModel >> createManagers [
-	"One municipality for each city territory, one local hunting group for each hunting unit, the hunting federation, and the farmers of each plot"
+	"One municipality for each city territory, one inter-municipal body for each administrative territory, one local hunting group for each hunting unit, the hunting federation, the farmers of each plot and the neighbourhood associations"
 
 	(self allEntitiesOfClass: BBCityTerritory) do: [ :each |
 			each city: ((self newEntity: BBCity)
 					 territory: each;
 					 yourself) ].
+	(self allEntitiesOfClass: BBAdministrativeTerritory) do: [ :each |
+		(self newEntity: BBAdministrativeEntity) territory: each ].
 	(self allEntitiesOfClass: BBHuntingUnit) do: [ :each |
 			each huntingGroup: ((self newEntity: BBHuntingGroup)
 					 huntingUnit: each;
 					 yourself) ].
 	self newEntity: BBHuntingFederation.
-	self createFarmers
+	self createFarmers.
+	self createAssociations
 ]
 
 { #category : 'initialization' }
@@ -358,8 +401,11 @@ BBModel >> step [
 	self cells do: [ :each | each changeLandCoverIn: self year ].
 	self growBoars.
 	self disperseBoarsByDensity.
+	self assessSatisfaction.
 	self assessDamage.
-	self year > 2018 ifTrue: [ self protectCrops ].
+	self year > 2018 ifTrue: [
+			self applyCityPolicies.
+			self protectCrops ].
 	self organizeHuntsIn: self year.
 	self huntBoars.
 	self killBoarsOnRoads.

@@ -19,7 +19,7 @@ I am the land cover of one plot: the fraction of its area under each type of cov
 - `fractionOf: #Forest` answers the current fraction of a type.
 - `fractionOf: #City in: 2018` answers an observed fraction.
 - `mainCover` answers the type with the largest fraction.
-- `changeIn: 2019` changes the fractions for one year, and `encroachShrubsBy:` turns some urban grass into trees.
+- `changeIn: 2019` changes the fractions for one year, and `encroachShrubsBy:` turns some urban grass into trees; `brushCutBy:` does the opposite.
 - `urbanTrees`, `urbanGrass` and `agriculturalShareOf: #wine` answer the vegetation and crops.
 - `urbanVegetationScore` answers how much urban vegetation makes urban fabric a habitat, between 0 and 1.
 
@@ -91,6 +91,16 @@ BBLandCover >> agriculturalShareOf: aCrop [
 	"Answer the share of the farmland given to #wine, #grain or #vegetables"
 
 	^ agriculturalShares at: aCrop
+]
+
+{ #category : 'changing' }
+BBLandCover >> brushCutBy: aNumber [
+	"Cut some urban trees, which grow back as grass"
+
+	| cut |
+	cut := aNumber min: urbanTrees.
+	urbanTrees := urbanTrees - cut.
+	urbanGrass := urbanGrass + cut
 ]
 
 { #category : 'changing' }
@@ -216,6 +226,13 @@ BBLandCover >> urbanGrass [
 BBLandCover >> urbanTrees [
 
 	^ urbanTrees
+]
+
+{ #category : 'changing' }
+BBLandCover >> urbanTrees: someTrees grass: someGrass [
+
+	urbanTrees := someTrees.
+	urbanGrass := someGrass
 ]
 
 { #category : 'habitat' }
