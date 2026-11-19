@@ -6,6 +6,7 @@ I am a hexagonal plot of the landscape around Montpellier. I know my land cover,
 - Read my attributes from a row of the plot table: the names of my territories, my human population density and my living standard.
 - Know how accessible household waste is and how much residents feed boars, now and at the start.
 - Know the number of boars I can hold and their growth rate, from my land cover, my anthropogenic food and the acorns of the year.
+- Hold my boars: where they live in 1990, how they grow, and how many leave for my neighbours when I am crowded.
 - Hold my `BBLandCover` and answer the territories I belong to.
 
 ## Collaborators:
@@ -18,6 +19,8 @@ I am a hexagonal plot of the landscape around Montpellier. I know my land cover,
 
 - `wasteAccessibility` and `feedingIntensity` answer the anthropogenic food on me, between 0 and 1.
 - `carryingCapacity` and `growthRate` answer K and r, from `habitatQuality` and `habitatPotential`.
+- `boars` answers the number of boars on me, `saturation` how full I am, and `grow` makes them grow for a year.
+- `densityDispersers`, `sendDispersers:` and `settleDispersers` move boars to my neighbours, as `BBModel` orders.
 - `landCover` answers my land cover.
 - `cityTerritory`, `administrativeTerritory` and `huntingUnit` answer my territories.
 - The weights of density and living standard, and the reference carrying capacity and growth rate, are parameters of my class. The values of each type of land cover are constants of my class.
@@ -36,12 +39,15 @@ plot carryingCapacity. ""33 on a pure forest plot with acorns at 0.5""
 - `livingStandard` is `#veryLow`, `#low`, `#medium`, `#high`, `#veryHigh` or `#NA`.
 - `initialWasteAccessibility` and `initialFeedingIntensity` are the values before any city policy; `wasteAccessibility` and `feedingIntensity` are the current ones.
 - `cityName`, `administrativeName` and `huntingUnitName` are the names my territories are created from.
+- `boars` is a number that need not be whole. `arrivingBoars` and `leavingBoars` add up the boars that move during one dispersal.
 
 ### Implementation Points
 
 As in the original model, the initial feeding intensity depends only on the population density: the share of residents who like boars is not known yet when it is computed, because associations do not exist yet. The original also had a grain feeding intensity, always 0, which is left out.
 
 Each type of land cover adds its fraction times its reference value, times one plus the weight of each of its food sources. Urban types are also scaled by the vegetation inside urban fabric. As in the original model, fences do not change K and r: the original gave them weights under names that its formula never looked up.
+
+Boars are a number on each plot, where the original had one population agent per plot. Unlike the original, boars never go below zero after growth: an overcrowded plot loses all its boars instead.
 "
 Class {
 	#name : 'BBPlot',
@@ -56,14 +62,20 @@ Class {
 		'wasteAccessibility',
 		'initialFeedingIntensity',
 		'feedingIntensity',
-		'landCover'
+		'landCover',
+		'boars',
+		'arrivingBoars',
+		'leavingBoars'
 	],
 	#classInstVars : [
 		'wasteDensityWeight',
 		'wasteLivingStandardWeight',
 		'feedingDensityWeight',
 		'referenceCarryingCapacity',
-		'referenceGrowthRate'
+		'referenceGrowthRate',
+		'densityDependence',
+		'maximumDispersalRate',
+		'dispersalSteepness'
 	],
 	#category : 'BoundaryBoar-Model',
 	#package : 'BoundaryBoar-Model'
@@ -110,6 +122,34 @@ BBPlot class >> coverColors [
 ]
 
 { #category : 'parameters' }
+BBPlot class >> densityDependence [
+	"The theta of theta-logistic growth: the higher, the later crowding slows growth down"
+
+	<parameterFloatMin: 0.1 max: 5 default: 1.5>
+	^ densityDependence
+]
+
+{ #category : 'parameters' }
+BBPlot class >> densityDependence: aNumber [
+
+	densityDependence := aNumber
+]
+
+{ #category : 'parameters' }
+BBPlot class >> dispersalSteepness [
+	"How sharply dispersal rises as a plot fills up: the higher, the more boars wait until their plot is nearly full"
+
+	<parameterFloatMin: 0.1 max: 20 default: 5>
+	^ dispersalSteepness
+]
+
+{ #category : 'parameters' }
+BBPlot class >> dispersalSteepness: aNumber [
+
+	dispersalSteepness := aNumber
+]
+
+{ #category : 'parameters' }
 BBPlot class >> feedingDensityWeight [
 
 	<parameterFloatMin: 0 max: 1 default: 0.3>
@@ -147,9 +187,32 @@ BBPlot class >> growthRateWeights [
 		  (#feedingIntensity -> 0.15) } asDictionary
 ]
 
+{ #category : 'boars' }
+BBPlot class >> initialDensities [
+	"The share of the carrying capacity of each type of land cover that boars filled in 1990, before they spread"
+
+	^ {
+		  (#Forest -> 0.02).
+		  (#OpenLand -> 0.01) } asDictionary
+]
+
+{ #category : 'parameters' }
+BBPlot class >> maximumDispersalRate [
+	"The share of the boars of a full plot that leave it each year when its neighbours are empty"
+
+	<parameterFloatMin: 0 max: 1 default: 0.1>
+	^ maximumDispersalRate
+]
+
+{ #category : 'parameters' }
+BBPlot class >> maximumDispersalRate: aNumber [
+
+	maximumDispersalRate := aNumber
+]
+
 { #category : 'habitat' }
-BBPlot class >> modifiersOf: aType [
-	"Answer the selectors of the food sources that make a type of land cover a better habitat"
+BBPlot class >> modifiers [
+	"The selectors of the food sources that make each type of land cover a better habitat"
 
 	^ {
 		  (#City -> #( #wasteAccessibility #feedingIntensity )).
@@ -157,9 +220,9 @@ BBPlot class >> modifiersOf: aType [
 		  (#OpenLand -> #( #acornAvailability )).
 		  (#Forest -> #( #acornAvailability )).
 		  (#Wetland -> #( #acornAvailability )).
-		  (#Agri -> #( #acornAvailability )) } asDictionary
-		  at: aType
-		  ifAbsent: [ #(  ) ]
+		  (#Agri -> #( #acornAvailability )).
+		  (#Sea -> #(  )).
+		  (#BurntArea -> #(  )) } asDictionary
 ]
 
 { #category : 'parameters' }
@@ -242,6 +305,17 @@ BBPlot >> aspectAdministrativeTerritory: look [
 ]
 
 { #category : 'aspects' }
+BBPlot >> aspectBoars: look [
+
+	<aspect>
+	look
+		colorShadeOf: (Color fromHexString: '8B4513')
+		forValue: boars
+		from: 0
+		to: 35
+]
+
+{ #category : 'aspects' }
 BBPlot >> aspectCarryingCapacity: look [
 
 	<aspect>
@@ -319,6 +393,22 @@ BBPlot >> aspectMunicipality: look [
 ]
 
 { #category : 'aspects' }
+BBPlot >> aspectSaturation: look [
+	"How full of boars I am, from white when I am empty to red when I am full, and grey when I have no habitat"
+
+	<aspect>
+	self carryingCapacity > 0
+		ifTrue: [
+				look
+					colorBetween: Color white
+					and: Color red
+					forValue: self saturation
+					from: 0
+					to: 1 ]
+		ifFalse: [ look color: Color veryLightGray ]
+]
+
+{ #category : 'aspects' }
 BBPlot >> aspectUrbanVegetation: look [
 	"How much the vegetation inside urban fabric makes it a habitat, on plots with some city"
 
@@ -344,6 +434,26 @@ BBPlot >> aspectWasteAccessibility: look [
 		to: 1
 ]
 
+{ #category : 'dispersal' }
+BBPlot >> attractivity [
+	"Answer how much I attract dispersing boars: the more room I have, the more"
+
+	^ self carryingCapacity * (1 - self saturation)
+]
+
+{ #category : 'boars' }
+BBPlot >> boars [
+	"The number of boars on me, which need not be a whole number"
+
+	^ boars
+]
+
+{ #category : 'boars' }
+BBPlot >> boars: aNumber [
+
+	boars := aNumber
+]
+
 { #category : 'habitat' }
 BBPlot >> carryingCapacity [
 	"Answer the number of boars I can hold"
@@ -361,6 +471,23 @@ BBPlot >> cityName [
 BBPlot >> cityTerritory [
 
 	^ self getAggregateType: BBCityTerritory
+]
+
+{ #category : 'dispersal' }
+BBPlot >> densityDispersalRate [
+
+	| steepness |
+	steepness := self class dispersalSteepness.
+	^ self class maximumDispersalRate
+	  * ((steepness * self saturation) exp - 1) / (steepness exp - 1)
+]
+
+{ #category : 'dispersal' }
+BBPlot >> densityDispersers [
+	"Answer how many boars leave me because I am crowded: more the fuller I am, and the emptier my neighbours are"
+
+	^ boars * self densityDispersalRate * self meanVacancyOfNeighbours
+		  min: boars
 ]
 
 { #category : 'food' }
@@ -381,6 +508,21 @@ BBPlot >> feedingIntensity [
 	^ feedingIntensity
 ]
 
+{ #category : 'boars' }
+BBPlot >> grow [
+	"Theta-logistic growth. Overcrowded boars can die out, but never go below zero"
+
+	| capacity |
+	capacity := self carryingCapacity.
+	capacity <= 0 ifTrue: [ ^ self ].
+	boars := boars + (self growthRate * boars
+	          *
+	          (1
+	           -
+	           (boars / capacity raisedTo: self class densityDependence)))
+		         max: 0
+]
+
 { #category : 'habitat' }
 BBPlot >> growthRate [
 	"Answer the yearly growth rate of my boars when they are few"
@@ -389,22 +531,26 @@ BBPlot >> growthRate [
 ]
 
 { #category : 'habitat' }
-BBPlot >> habitatOf: aType references: someReferences weights: someWeights [
-	"Answer the habitat value of one type of land cover: its fraction of my area, times its reference value, reduced by the lack of vegetation in urban fabric and raised by the food sources it offers"
+BBPlot >> habitatOfTypes: someTypes references: someReferences weights: someWeights [
+	"Answer the habitat value of some types of land cover. Each adds its fraction of my area, times its reference value, reduced by the lack of vegetation in urban fabric and raised by the food sources it offers"
 
-	^ (landCover fractionOf: aType) * (someReferences at: aType)
-	  * (self vegetationFactorOf: aType)
-	  *
-		  ((self class modifiersOf: aType)
-			   inject: 1
-			   into: [ :product :each |
-				   product * (1 + ((self perform: each) * (someWeights at: each))) ])
+	| modifiers |
+	modifiers := self class modifiers.
+	^ someTypes sum: [ :type |
+			  (landCover fractionOf: type) * (someReferences at: type)
+			  * (self vegetationFactorOf: type)
+			  * ((modifiers at: type) inject: 1 into: [ :product :each |
+					   product
+					   * (1 + ((self perform: each) * (someWeights at: each))) ]) ]
 ]
 
 { #category : 'habitat' }
 BBPlot >> habitatPotential [
 
-	^ BBLandCover types sum: [ :each | self habitatPotentialOf: each ]
+	^ self
+		  habitatOfTypes: BBLandCover types
+		  references: self class growthRateReferences
+		  weights: self class growthRateWeights
 ]
 
 { #category : 'habitat' }
@@ -412,7 +558,7 @@ BBPlot >> habitatPotentialOf: aType [
 	"Answer the share of my habitat potential that comes from one type of land cover"
 
 	^ self
-		  habitatOf: aType
+		  habitatOfTypes: { aType }
 		  references: self class growthRateReferences
 		  weights: self class growthRateWeights
 ]
@@ -420,7 +566,10 @@ BBPlot >> habitatPotentialOf: aType [
 { #category : 'habitat' }
 BBPlot >> habitatQuality [
 
-	^ BBLandCover types sum: [ :each | self habitatQualityOf: each ]
+	^ self
+		  habitatOfTypes: BBLandCover types
+		  references: self class carryingCapacityReferences
+		  weights: self class carryingCapacityWeights
 ]
 
 { #category : 'habitat' }
@@ -428,7 +577,7 @@ BBPlot >> habitatQualityOf: aType [
 	"Answer the share of my habitat quality that comes from one type of land cover"
 
 	^ self
-		  habitatOf: aType
+		  habitatOfTypes: { aType }
 		  references: self class carryingCapacityReferences
 		  weights: self class carryingCapacityWeights
 ]
@@ -443,6 +592,29 @@ BBPlot >> huntingUnit [
 BBPlot >> huntingUnitName [
 
 	^ huntingUnitName
+]
+
+{ #category : 'initialization' }
+BBPlot >> initialize [
+
+	super initialize.
+	boars := 0.
+	arrivingBoars := 0.
+	leavingBoars := 0
+]
+
+{ #category : 'initialization' }
+BBPlot >> initializeBoars [
+	"Boars of 1990 live only in forest and open land, away from towns"
+
+	(self isUrban or: [
+		 self neighbourhood anySatisfy: [ :each | each isUrban ] ]) ifTrue: [
+		^ boars := 0 ].
+	boars := self class referenceCarryingCapacity
+	         * (self class initialDensities keys sum: [ :type |
+				          (landCover fractionOf: type)
+				          * (self class carryingCapacityReferences at: type)
+				          * (self class initialDensities at: type) ])
 ]
 
 { #category : 'initialization' }
@@ -473,6 +645,13 @@ BBPlot >> initializeFromRow: aRow [
 		                                               min: 1
 ]
 
+{ #category : 'boars' }
+BBPlot >> isUrban [
+	"Answer whether my main land cover is built up"
+
+	^ #( #City #IndusZone ) includes: landCover mainCover
+]
+
 { #category : 'accessing' }
 BBPlot >> landCover [
 
@@ -497,6 +676,64 @@ BBPlot >> livingStandardScore [
 		  (#veryHigh -> 0.2) } asDictionary
 		  at: livingStandard
 		  ifAbsent: [ 0 ]
+]
+
+{ #category : 'dispersal' }
+BBPlot >> meanVacancyOfNeighbours [
+	"Answer how empty my neighbours are on average, from 0 when they are full to 1 when they are empty"
+
+	| neighbours |
+	neighbours := self neighbourhood.
+	neighbours isEmpty ifTrue: [ ^ 0 ].
+	^ (neighbours sum: [ :each | 1 - each saturation ]) / neighbours size
+]
+
+{ #category : 'dispersal' }
+BBPlot >> receiveDispersers: aNumber [
+
+	arrivingBoars := arrivingBoars + aNumber
+]
+
+{ #category : 'dispersal' }
+BBPlot >> resetDispersal [
+
+	arrivingBoars := 0.
+	leavingBoars := 0
+]
+
+{ #category : 'boars' }
+BBPlot >> saturation [
+	"Answer how full I am, from 0 when I have no boars to 1 when I hold as many as I can. A plot with no habitat counts as full"
+
+	| capacity |
+	capacity := self carryingCapacity.
+	capacity <= 0 ifTrue: [ ^ 1 ].
+	^ boars / capacity min: 1 max: 0
+]
+
+{ #category : 'dispersal' }
+BBPlot >> sendDispersers: aNumber [
+	"Share aNumber of my boars among my neighbours that have a habitat and are not more crowded than me, in proportion to their attractivity. They stay if there is no such neighbour"
+
+	| welcoming totalAttractivity |
+	aNumber > 0 ifFalse: [ ^ self ].
+	welcoming := self neighbourhood select: [ :each |
+		             each carryingCapacity > 0 and: [
+			             each saturation <= self saturation ] ].
+	totalAttractivity := welcoming
+		                     inject: 0
+		                     into: [ :sum :each | sum + each attractivity ].
+	totalAttractivity > 0 ifFalse: [ ^ self ].
+	welcoming do: [ :each |
+			each receiveDispersers:
+				each attractivity / totalAttractivity * aNumber ].
+	leavingBoars := leavingBoars + aNumber
+]
+
+{ #category : 'dispersal' }
+BBPlot >> settleDispersers [
+
+	boars := boars - leavingBoars + arrivingBoars max: 0
 ]
 
 { #category : 'habitat' }

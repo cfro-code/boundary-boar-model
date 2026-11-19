@@ -6,7 +6,7 @@ I am BOUNDARYBOAR, a model of wild boar populations at the rural-urban interface
 - Create the hexagonal landscape of Montpellier from the plot and cover tables of my data folder.
 - Group plots into municipalities, administrative territories and hunting units.
 - Know the acorn mast of the current year, the same on every plot.
-- Run the yearly schedule of the model.
+- Run the yearly schedule of the model: boars grow, then move from crowded plots, all at once.
 
 ## Collaborators:
 
@@ -88,6 +88,27 @@ BBModel >> createTerritories: aTerritoryClass groupingPlotsBy: aSelector [
 		(self createAggregate: aTerritoryClass from: plots) name: name ]
 ]
 
+{ #category : 'boars' }
+BBModel >> disperseBoars: aBlock [
+	"Move the boars that aBlock answers for each plot, all at once: every plot decides how many leave from the numbers before anyone moves"
+
+	self cells do: [ :each | each resetDispersal ].
+	self cells do: [ :each | each sendDispersers: (aBlock value: each) ].
+	self cells do: [ :each | each settleDispersers ]
+]
+
+{ #category : 'boars' }
+BBModel >> disperseBoarsByDensity [
+
+	self disperseBoars: [ :plot | plot densityDispersers ]
+]
+
+{ #category : 'boars' }
+BBModel >> growBoars [
+
+	self cells do: [ :each | each grow ]
+]
+
 { #category : 'initialization' }
 BBModel >> initMontpellier [
 	"The landscape of Montpellier in 1990"
@@ -100,7 +121,7 @@ BBModel >> initMontpellier [
 
 { #category : 'initialization' }
 BBModel >> initWithPlotTable: somePlotRows coverTable: someCoverRows [
-	"Create the grid, the plots and their land cover from the rows of the plot and cover tables, which give one row per plot"
+	"Create the grid, the plots, their land cover and their boars from the rows of the plot and cover tables, which give one row per plot"
 
 	acornAvailability := self acornSeries first.
 	self
@@ -114,7 +135,8 @@ BBModel >> initWithPlotTable: somePlotRows coverTable: someCoverRows [
 		(self plotInRow: row) initializeFromRow: row ].
 	someCoverRows do: [ :row |
 		(self plotInRow: row) landCover: (BBLandCover fromRow: row) ].
-	self createTerritories
+	self createTerritories.
+	self cells do: [ :each | each initializeBoars ]
 ]
 
 { #category : 'private' }
@@ -128,9 +150,11 @@ BBModel >> plotInRow: aRow [
 
 { #category : 'control' }
 BBModel >> step [
+	"One year"
 
 	<control>
-	"Executed at every step of the simulation"
+	self growBoars.
+	self disperseBoarsByDensity
 ]
 
 { #category : 'private' }
@@ -144,4 +168,10 @@ BBModel >> tableNamed: aFileName [
 			  (columnNames
 				   with: (line splitOn: $;)
 				   collect: [ :name :text | name -> text ]) asDictionary ]
+]
+
+{ #category : 'boars' }
+BBModel >> totalBoars [
+
+	^ self cells sum: [ :each | each boars ]
 ]
