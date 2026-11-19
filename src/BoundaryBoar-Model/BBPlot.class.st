@@ -5,6 +5,7 @@ I am a hexagonal plot of the landscape around Montpellier. I know my land cover,
 
 - Read my attributes from a row of the plot table: the names of my territories, my human population density and my living standard.
 - Know how accessible household waste is and how much residents feed boars, now and at the start.
+- Know the number of boars I can hold and their growth rate, from my land cover, my anthropogenic food and the acorns of the year.
 - Hold my `BBLandCover` and answer the territories I belong to.
 
 ## Collaborators:
@@ -16,14 +17,17 @@ I am a hexagonal plot of the landscape around Montpellier. I know my land cover,
 ## Public API and Key Messages
 
 - `wasteAccessibility` and `feedingIntensity` answer the anthropogenic food on me, between 0 and 1.
+- `carryingCapacity` and `growthRate` answer K and r, from `habitatQuality` and `habitatPotential`.
 - `landCover` answers my land cover.
 - `cityTerritory`, `administrativeTerritory` and `huntingUnit` answer my territories.
-- The weights of density and living standard are parameters of my class.
+- The weights of density and living standard, and the reference carrying capacity and growth rate, are parameters of my class. The values of each type of land cover are constants of my class.
+- My aspects show my main land cover by default, and K, r, food, urban vegetation and territories.
 
 ```
 plot := model cellAt: 5 at: 12.
 plot wasteAccessibility. ""0.64 for a semi-dense area with a high living standard""
 plot landCover mainCover. ""#City""
+plot carryingCapacity. ""33 on a pure forest plot with acorns at 0.5""
 ```
 
 ## Internal Representation
@@ -36,6 +40,8 @@ plot landCover mainCover. ""#City""
 ### Implementation Points
 
 As in the original model, the initial feeding intensity depends only on the population density: the share of residents who like boars is not known yet when it is computed, because associations do not exist yet. The original also had a grain feeding intensity, always 0, which is left out.
+
+Each type of land cover adds its fraction times its reference value, times one plus the weight of each of its food sources. Urban types are also scaled by the vegetation inside urban fabric. As in the original model, fences do not change K and r: the original gave them weights under names that its formula never looked up.
 "
 Class {
 	#name : 'BBPlot',
@@ -55,11 +61,53 @@ Class {
 	#classInstVars : [
 		'wasteDensityWeight',
 		'wasteLivingStandardWeight',
-		'feedingDensityWeight'
+		'feedingDensityWeight',
+		'referenceCarryingCapacity',
+		'referenceGrowthRate'
 	],
 	#category : 'BoundaryBoar-Model',
 	#package : 'BoundaryBoar-Model'
 }
+
+{ #category : 'habitat' }
+BBPlot class >> carryingCapacityReferences [
+	"The habitat quality of each type of land cover, before modifiers"
+
+	^ {
+		  (#Forest -> 1.5).
+		  (#OpenLand -> 0.8).
+		  (#Agri -> 0.4).
+		  (#Wetland -> 0.5).
+		  (#BurntArea -> 0).
+		  (#Sea -> 0).
+		  (#City -> 0.2).
+		  (#IndusZone -> 0.1) } asDictionary
+]
+
+{ #category : 'habitat' }
+BBPlot class >> carryingCapacityWeights [
+	"How much each modifier raises habitat quality when it is 1"
+
+	^ {
+		  (#acornAvailability -> 0.2).
+		  (#wasteAccessibility -> 0.5).
+		  (#feedingIntensity -> 0.5) } asDictionary
+]
+
+{ #category : 'aspects' }
+BBPlot class >> coverColors [
+	"The colors of the types of land cover, from the CORINE Land Cover legend"
+
+	^ {
+		  (#City -> (Color fromHexString: 'E6004D')).
+		  (#IndusZone -> (Color fromHexString: 'CC4DF2')).
+		  (#OpenLand -> (Color fromHexString: 'A6E64D')).
+		  (#Forest -> (Color fromHexString: '00A600')).
+		  (#Agri -> (Color fromHexString: 'FFE64D')).
+		  (#Wetland -> (Color fromHexString: 'A6A6FF')).
+		  (#Sea -> (Color fromHexString: '00CCF2')).
+		  (#BurntArea -> Color black) } asDictionary
+]
 
 { #category : 'parameters' }
 BBPlot class >> feedingDensityWeight [
@@ -72,6 +120,74 @@ BBPlot class >> feedingDensityWeight [
 BBPlot class >> feedingDensityWeight: aNumber [
 
 	feedingDensityWeight := aNumber
+]
+
+{ #category : 'habitat' }
+BBPlot class >> growthRateReferences [
+	"The habitat potential of each type of land cover, before modifiers"
+
+	^ {
+		  (#Forest -> 1.0).
+		  (#OpenLand -> 0.9).
+		  (#Agri -> 0.9).
+		  (#Wetland -> 0.8).
+		  (#BurntArea -> 0.2).
+		  (#Sea -> 0).
+		  (#City -> 0.7).
+		  (#IndusZone -> 0.5) } asDictionary
+]
+
+{ #category : 'habitat' }
+BBPlot class >> growthRateWeights [
+	"How much each modifier raises habitat potential when it is 1"
+
+	^ {
+		  (#acornAvailability -> 0.5).
+		  (#wasteAccessibility -> 0.15).
+		  (#feedingIntensity -> 0.15) } asDictionary
+]
+
+{ #category : 'habitat' }
+BBPlot class >> modifiersOf: aType [
+	"Answer the selectors of the food sources that make a type of land cover a better habitat"
+
+	^ {
+		  (#City -> #( #wasteAccessibility #feedingIntensity )).
+		  (#IndusZone -> #( #wasteAccessibility )).
+		  (#OpenLand -> #( #acornAvailability )).
+		  (#Forest -> #( #acornAvailability )).
+		  (#Wetland -> #( #acornAvailability )).
+		  (#Agri -> #( #acornAvailability )) } asDictionary
+		  at: aType
+		  ifAbsent: [ #(  ) ]
+]
+
+{ #category : 'parameters' }
+BBPlot class >> referenceCarryingCapacity [
+	"The number of boars a plot can hold when its habitat quality is 1"
+
+	<parameterFloatMin: 0 max: 100 default: 20>
+	^ referenceCarryingCapacity
+]
+
+{ #category : 'parameters' }
+BBPlot class >> referenceCarryingCapacity: aNumber [
+
+	referenceCarryingCapacity := aNumber
+]
+
+{ #category : 'parameters' }
+BBPlot class >> referenceGrowthRate [
+	"The yearly growth rate of boars on a plot when its habitat potential is 1"
+
+	<parameterFloatMin: 0 max: 2 default: 0.4>
+	^ referenceGrowthRate
+]
+
+{ #category : 'parameters' }
+BBPlot class >> referenceGrowthRate: aNumber [
+
+	referenceGrowthRate := aNumber
 ]
 
 { #category : 'parameters' }
@@ -100,6 +216,12 @@ BBPlot class >> wasteLivingStandardWeight: aNumber [
 	wasteLivingStandardWeight := aNumber
 ]
 
+{ #category : 'habitat' }
+BBPlot >> acornAvailability [
+
+	^ self cormasModel acornAvailability
+]
+
 { #category : 'accessing' }
 BBPlot >> administrativeName [
 
@@ -110,6 +232,123 @@ BBPlot >> administrativeName [
 BBPlot >> administrativeTerritory [
 
 	^ self getAggregateType: BBAdministrativeTerritory
+]
+
+{ #category : 'aspects' }
+BBPlot >> aspectAdministrativeTerritory: look [
+
+	<aspect>
+	look colorGroupedBy: administrativeName
+]
+
+{ #category : 'aspects' }
+BBPlot >> aspectCarryingCapacity: look [
+
+	<aspect>
+	look
+		colorShadeOf: Color green
+		forValue: self carryingCapacity
+		from: 0
+		to: 35
+]
+
+{ #category : 'aspects' }
+BBPlot >> aspectDefault: look [
+	"The land cover with the largest fraction"
+
+	<aspect>
+	look color: (self class coverColors at: landCover mainCover)
+]
+
+{ #category : 'aspects' }
+BBPlot >> aspectFarmland: look [
+
+	<aspect>
+	look
+		colorShadeOf: (Color fromHexString: 'E6A600')
+		forValue: (landCover fractionOf: #Agri)
+		from: 0
+		to: 1
+]
+
+{ #category : 'aspects' }
+BBPlot >> aspectFeedingIntensity: look [
+
+	<aspect>
+	look
+		colorShadeOf: Color red
+		forValue: feedingIntensity
+		from: 0
+		to: 1
+]
+
+{ #category : 'aspects' }
+BBPlot >> aspectForest: look [
+
+	<aspect>
+	look
+		colorShadeOf: (self class coverColors at: #Forest)
+		forValue: (landCover fractionOf: #Forest)
+		from: 0
+		to: 1
+]
+
+{ #category : 'aspects' }
+BBPlot >> aspectGrowthRate: look [
+
+	<aspect>
+	look
+		colorShadeOf: Color blue
+		forValue: self growthRate
+		from: 0
+		to: 0.6
+]
+
+{ #category : 'aspects' }
+BBPlot >> aspectHuntingUnit: look [
+
+	<aspect>
+	look colorGroupedBy: huntingUnitName
+]
+
+{ #category : 'aspects' }
+BBPlot >> aspectMunicipality: look [
+
+	<aspect>
+	look colorGroupedBy: cityName
+]
+
+{ #category : 'aspects' }
+BBPlot >> aspectUrbanVegetation: look [
+	"How much the vegetation inside urban fabric makes it a habitat, on plots with some city"
+
+	<aspect>
+	(landCover fractionOf: #City) > 0
+		ifTrue: [
+				look
+					colorShadeOf: (self class coverColors at: #Forest)
+					forValue: landCover urbanVegetationScore
+					from: 0
+					to: 1 ]
+		ifFalse: [ look color: Color veryLightGray ]
+]
+
+{ #category : 'aspects' }
+BBPlot >> aspectWasteAccessibility: look [
+
+	<aspect>
+	look
+		colorShadeOf: Color orange
+		forValue: wasteAccessibility
+		from: 0
+		to: 1
+]
+
+{ #category : 'habitat' }
+BBPlot >> carryingCapacity [
+	"Answer the number of boars I can hold"
+
+	^ self class referenceCarryingCapacity * self habitatQuality
 ]
 
 { #category : 'accessing' }
@@ -140,6 +379,58 @@ BBPlot >> feedingDensityScore [
 BBPlot >> feedingIntensity [
 
 	^ feedingIntensity
+]
+
+{ #category : 'habitat' }
+BBPlot >> growthRate [
+	"Answer the yearly growth rate of my boars when they are few"
+
+	^ self class referenceGrowthRate * self habitatPotential
+]
+
+{ #category : 'habitat' }
+BBPlot >> habitatOf: aType references: someReferences weights: someWeights [
+	"Answer the habitat value of one type of land cover: its fraction of my area, times its reference value, reduced by the lack of vegetation in urban fabric and raised by the food sources it offers"
+
+	^ (landCover fractionOf: aType) * (someReferences at: aType)
+	  * (self vegetationFactorOf: aType)
+	  *
+		  ((self class modifiersOf: aType)
+			   inject: 1
+			   into: [ :product :each |
+				   product * (1 + ((self perform: each) * (someWeights at: each))) ])
+]
+
+{ #category : 'habitat' }
+BBPlot >> habitatPotential [
+
+	^ BBLandCover types sum: [ :each | self habitatPotentialOf: each ]
+]
+
+{ #category : 'habitat' }
+BBPlot >> habitatPotentialOf: aType [
+	"Answer the share of my habitat potential that comes from one type of land cover"
+
+	^ self
+		  habitatOf: aType
+		  references: self class growthRateReferences
+		  weights: self class growthRateWeights
+]
+
+{ #category : 'habitat' }
+BBPlot >> habitatQuality [
+
+	^ BBLandCover types sum: [ :each | self habitatQualityOf: each ]
+]
+
+{ #category : 'habitat' }
+BBPlot >> habitatQualityOf: aType [
+	"Answer the share of my habitat quality that comes from one type of land cover"
+
+	^ self
+		  habitatOf: aType
+		  references: self class carryingCapacityReferences
+		  weights: self class carryingCapacityWeights
 ]
 
 { #category : 'accessing' }
@@ -206,6 +497,14 @@ BBPlot >> livingStandardScore [
 		  (#veryHigh -> 0.2) } asDictionary
 		  at: livingStandard
 		  ifAbsent: [ 0 ]
+]
+
+{ #category : 'habitat' }
+BBPlot >> vegetationFactorOf: aType [
+
+	^ (#( #City #IndusZone ) includes: aType)
+		  ifTrue: [ landCover urbanVegetationScore ]
+		  ifFalse: [ 1 ]
 ]
 
 { #category : 'food' }

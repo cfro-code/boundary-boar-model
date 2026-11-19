@@ -5,6 +5,7 @@ I am BOUNDARYBOAR, a model of wild boar populations at the rural-urban interface
 
 - Create the hexagonal landscape of Montpellier from the plot and cover tables of my data folder.
 - Group plots into municipalities, administrative territories and hunting units.
+- Know the acorn mast of the current year, the same on every plot.
 - Run the yearly schedule of the model.
 
 ## Collaborators:
@@ -31,6 +32,9 @@ The rules follow the ODD description of the original model, written from its cod
 Class {
 	#name : 'BBModel',
 	#superclass : 'CMModel',
+	#instVars : [
+		'acornAvailability'
+	],
 	#category : 'BoundaryBoar-Model',
 	#package : 'BoundaryBoar-Model'
 }
@@ -40,6 +44,28 @@ BBModel class >> prefix [
 	"Every class name in the model package begins with this prefix"
 
 	^ 'BB'
+]
+
+{ #category : 'acorns' }
+BBModel >> acornAvailability [
+	"The acorn mast of the current year, the same on every plot"
+
+	^ acornAvailability
+]
+
+{ #category : 'acorns' }
+BBModel >> acornAvailability: aNumber [
+
+	acornAvailability := aNumber
+]
+
+{ #category : 'acorns' }
+BBModel >> acornSeries [
+	"The acorn mast of each year from 1990 to 2028, between 0 and 1, as in the original model"
+
+	^ #( 0.5 0.6 0.4 0.5 0.6 0.5 0.7 0.5 0.4 0.5 0.6 0.4 0.8 0.5 0.3 0.7
+	     0.9 0.4 0.5 0.8 0.3 0.9 0.4 0.6 1.0 0.2 0.8 0.3 0.5 0.9 0.2 0.8
+	     0.3 1.0 0.2 0.9 0.4 0.2 1.0 )
 ]
 
 { #category : 'initialization' }
@@ -76,6 +102,7 @@ BBModel >> initMontpellier [
 BBModel >> initWithPlotTable: somePlotRows coverTable: someCoverRows [
 	"Create the grid, the plots and their land cover from the rows of the plot and cover tables, which give one row per plot"
 
+	acornAvailability := self acornSeries first.
 	self
 		createGridNumberOfRows:
 		(somePlotRows collect: [ :row | (row at: 'rowIndex') asNumber ]) max

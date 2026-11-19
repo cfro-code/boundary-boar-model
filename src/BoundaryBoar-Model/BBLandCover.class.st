@@ -19,6 +19,7 @@ I am the land cover of one plot: the fraction of its area under each type of cov
 - `fractionOf: #City in: 2018` answers an observed fraction.
 - `mainCover` answers the type with the largest fraction.
 - `urbanTrees`, `urbanGrass` and `agriculturalShareOf: #wine` answer the vegetation and crops.
+- `urbanVegetationScore` answers how much urban vegetation makes urban fabric a habitat, between 0 and 1.
 
 ```
 cover := BBLandCover fromRow: aRowOfTheCoverTable.
@@ -151,4 +152,16 @@ BBLandCover >> urbanGrass [
 BBLandCover >> urbanTrees [
 
 	^ urbanTrees
+]
+
+{ #category : 'habitat' }
+BBLandCover >> urbanVegetationScore [
+	"Answer how much the vegetation inside urban fabric makes it a habitat for boars, between 0 and 1. Trees count most, and grass counts only where there are trees"
+
+	| trees grass treeTerm vegetationTerm |
+	trees := urbanTrees min: 1 max: 0.
+	grass := urbanGrass min: 1 max: 0.
+	treeTerm := trees squared / (trees squared + 0.2 squared).
+	vegetationTerm := trees * grass / (trees * grass + 0.15).
+	^ 0.7 * treeTerm + (0.3 * vegetationTerm)
 ]
