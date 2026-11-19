@@ -31,6 +31,9 @@ model initMontpellier.
 (model cellAt: 9 at: 12) cityTerritory name. ""'MONTPELLIER'""
 ```
 
+- My probes chart the outputs of the original model: boars, urban boars, bags, hunts, collisions, farmer damage and fences, the fence budget, city policies, the satisfaction of residents, habitat, and the boars of Montferrier and of the Mosson.
+- My perspectives answer one question each: land cover, boars, habitat, hunting, farming, towns and territories. A simulation of Montpellier opens with the land cover.
+
 ### Implementation Points
 
 The rules follow the ODD description of the original model, written from its code. Where this port differs from the original on purpose, the class concerned says so in its comment.
@@ -124,6 +127,38 @@ BBModel >> assessSatisfaction [
 
 	(self allEntitiesOfClass: BBAssociation) do: [ :each |
 		each assessSatisfaction ]
+]
+
+{ #category : 'probes' }
+BBModel >> bag [
+
+	<probeNamed: 'Bag of driven hunts' color: 'FF7F0E'>
+	^ (self allEntitiesOfClass: BBDrivenHunt)
+		  inject: 0
+		  into: [ :sum :each | sum + each boarsKilled ]
+]
+
+{ #category : 'probes' }
+BBModel >> boars [
+
+	<probeNamed: 'Boars' color: '8B4513'>
+	^ self totalBoars
+]
+
+{ #category : 'private' }
+BBModel >> boarsAt: somePositions [
+	"Answer the boars of the plots at the positions row @ column"
+
+	^ somePositions
+		  inject: 0
+		  into: [ :sum :each | sum + (self cellAt: each x at: each y) boars ]
+]
+
+{ #category : 'probes' }
+BBModel >> collisions [
+
+	<probeNamed: 'Road collisions' color: '5E5E5E'>
+	^ self roadCollisions
 ]
 
 { #category : 'initialization' }
@@ -261,6 +296,44 @@ BBModel >> disperseBoarsByHunting [
 	self disperseBoars: [ :plot | plot huntingDispersers ]
 ]
 
+{ #category : 'probes' }
+BBModel >> drivenHunts [
+
+	<probeNamed: 'Driven hunts' color: 'FFBB78'>
+	^ (self allEntitiesOfClass: BBDrivenHunt) size
+]
+
+{ #category : 'probes' }
+BBModel >> farmersStands [
+
+	<probeNamed: 'Stands of farmers' color: '17BECF'>
+	^ (self allEntitiesOfClass: BBStand) count: [ :each |
+		  each organizer isKindOf: BBFarmer ]
+]
+
+{ #category : 'probes' }
+BBModel >> farmersWithPermanentFences [
+
+	<probeNamed: 'Farmers with permanent fences' color: '1F77B4'>
+	^ (self allEntitiesOfClass: BBFarmer) count: [ :each |
+		  each hasPermanentFences ]
+]
+
+{ #category : 'probes' }
+BBModel >> farmersWithTemporaryFences [
+
+	<probeNamed: 'Farmers with temporary fences' color: 'AEC7E8'>
+	^ (self allEntitiesOfClass: BBFarmer) count: [ :each |
+		  each hasTemporaryFences ]
+]
+
+{ #category : 'probes' }
+BBModel >> federationBudget [
+
+	<probeNamed: 'Fence budget of the hunting federation' color: '9467BD'>
+	^ self huntingFederation fenceBudget
+]
+
 { #category : 'boars' }
 BBModel >> growBoars [
 
@@ -297,6 +370,7 @@ BBModel >> initMontpellier [
 	"The landscape of Montpellier in 1990"
 
 	<init>
+	<perspective: #perspectiveLandCover>
 	self
 		initWithPlotTable: (self tableNamed: 'plotMtpBis.csv')
 		coverTable: (self tableNamed: 'coverMtpBis.csv')
@@ -330,6 +404,96 @@ BBModel >> killBoarsOnRoads [
 	self cells do: [ :each | each killBoarsBesideRoads ]
 ]
 
+{ #category : 'private' }
+BBModel >> mean: aBlock over: aCollection [
+	"Answer the mean of aBlock over aCollection, or 0 when it is empty, so that charts keep a value"
+
+	aCollection isEmpty ifTrue: [ ^ 0 ].
+	^ (aCollection
+		   inject: 0
+		   into: [ :sum :each | sum + (aBlock value: each) ])
+	  / aCollection size
+]
+
+{ #category : 'probes' }
+BBModel >> meanBrushcuttingCampaigns [
+
+	<probeNamed: 'Mean brush-cutting campaigns' color: '2CA02C'>
+	^ self
+		  mean: [ :each | each brushcuttingCampaigns ]
+		  over: (self allEntitiesOfClass: BBCity)
+]
+
+{ #category : 'probes' }
+BBModel >> meanFarmerDamage [
+
+	<probeNamed: 'Mean farmer damage' color: 'F1D54B'>
+	^ self
+		  mean: [ :each | each damage ]
+		  over: (self allEntitiesOfClass: BBFarmer)
+]
+
+{ #category : 'probes' }
+BBModel >> meanFeedingPolicy [
+
+	<probeNamed: 'Mean feeding policy' color: 'D62728'>
+	^ self
+		  mean: [ :each | each feedingPolicy ]
+		  over: (self allEntitiesOfClass: BBCity)
+]
+
+{ #category : 'probes' }
+BBModel >> meanGrowthRate [
+	"The mean growth rate of the plots where boars can grow"
+
+	<probeNamed: 'Mean growth rate' color: '7F7F7F'>
+	^ self
+		  mean: [ :each | each ]
+		  over:
+			  ((self cells collect: [ :each | each growthRate ]) select: [
+				   :each | each > 0 ])
+]
+
+{ #category : 'probes' }
+BBModel >> meanSatisfaction [
+
+	<probeNamed: 'Mean satisfaction of residents' color: '98DF8A'>
+	^ self
+		  mean: [ :each | each satisfaction ]
+		  over: (self allEntitiesOfClass: BBAssociation)
+]
+
+{ #category : 'probes' }
+BBModel >> meanWastePolicy [
+
+	<probeNamed: 'Mean waste policy' color: 'FF7F0E'>
+	^ self
+		  mean: [ :each | each wastePolicy ]
+		  over: (self allEntitiesOfClass: BBCity)
+]
+
+{ #category : 'probes' }
+BBModel >> montferrierBoars [
+	"The boars of the three plots of Montferrier-sur-Lez, as in the original model"
+
+	<probeNamed: 'Boars in Montferrier' color: 'BCBD22'>
+	^ self boarsAt: {
+			  (6 @ 11).
+			  (6 @ 12).
+			  (7 @ 12) }
+]
+
+{ #category : 'probes' }
+BBModel >> mossonBoars [
+	"The boars of the three plots of the Mosson district of Montpellier, as in the original model"
+
+	<probeNamed: 'Boars in the Mosson' color: 'DBDB8D'>
+	^ self boarsAt: {
+			  (9 @ 11).
+			  (10 @ 10).
+			  (10 @ 11) }
+]
+
 { #category : 'initialization' }
 BBModel >> nodeAt: aCorner of: aPlot in: someNodes [
 	"Answer the node at a corner of aPlot, creating it on aPlot if no plot around that corner has it yet. someNodes holds the nodes by their position on the grid"
@@ -351,6 +515,97 @@ BBModel >> organizeHuntsIn: aYear [
 
 	(self allEntitiesOfClass: BBHuntingGroup) do: [ :each |
 		each organizeHuntsIn: aYear ]
+]
+
+{ #category : 'perspectives' }
+BBModel >> perspectiveBoars [
+	"Where are the boars? Their number on each plot, with the hunts, stands and traps that kill them"
+
+	<perspective>
+	^ CMPerspective new
+		  show: BBPlot as: #aspectBoars:;
+		  hide: BBFarmer;
+		  hide: BBAssociation;
+		  yourself
+]
+
+{ #category : 'perspectives' }
+BBModel >> perspectiveFarming [
+	"How do farmers protect their crops? Farmland, the fences of each farmer, and their stands"
+
+	<perspective>
+	^ CMPerspective new
+		  show: BBPlot as: #aspectFarmland:;
+		  show: BBFarmer as: #aspectFences:;
+		  hide: BBDrivenHunt;
+		  hide: BBTrapping;
+		  hide: BBAssociation;
+		  yourself
+]
+
+{ #category : 'perspectives' }
+BBModel >> perspectiveHabitat [
+	"Where can boars live? The carrying capacity of each plot"
+
+	<perspective>
+	^ CMPerspective new
+		  show: BBPlot as: #aspectCarryingCapacity:;
+		  hide: BBFarmer;
+		  hide: BBAssociation;
+		  hide: BBRegulation;
+		  yourself
+]
+
+{ #category : 'perspectives' }
+BBModel >> perspectiveHunting [
+	"Who hunts where? Hunting units, with each hunt, stand or trap in the color of its organizer"
+
+	<perspective>
+	^ CMPerspective new
+		  show: BBPlot as: #aspectHuntingUnit:;
+		  show: BBRegulation as: #aspectOrganizer:;
+		  hide: BBFarmer;
+		  hide: BBAssociation;
+		  yourself
+]
+
+{ #category : 'perspectives' }
+BBModel >> perspectiveLandCover [
+	"What is the landscape? The main land cover of each plot, with roads, highways and rivers"
+
+	<perspective>
+	^ CMPerspective new
+		  show: BBPlot as: #aspectDefault:;
+		  hide: BBFarmer;
+		  hide: BBAssociation;
+		  hide: BBRegulation;
+		  yourself
+]
+
+{ #category : 'perspectives' }
+BBModel >> perspectiveTerritories [
+	"Who manages what? Municipalities, with the borders of all territories"
+
+	<perspective>
+	^ CMPerspective new
+		  show: BBPlot as: #aspectMunicipality:;
+		  show: BBTerritory as: #aspectBorder:;
+		  hide: BBFarmer;
+		  hide: BBAssociation;
+		  hide: BBRegulation;
+		  yourself
+]
+
+{ #category : 'perspectives' }
+BBModel >> perspectiveTowns [
+	"Are residents satisfied, and what do their cities do? Waste policies, and the satisfaction of each association"
+
+	<perspective>
+	^ CMPerspective new
+		  show: BBPlot as: #aspectWastePolicy:;
+		  hide: BBFarmer;
+		  hide: BBRegulation;
+		  yourself
 ]
 
 { #category : 'private' }
@@ -451,10 +706,47 @@ BBModel >> totalBoars [
 	^ self cells sum: [ :each | each boars ]
 ]
 
+{ #category : 'probes' }
+BBModel >> totalCarryingCapacity [
+
+	<probeNamed: 'Total carrying capacity' color: '2C7A2C'>
+	^ self cells
+		  inject: 0
+		  into: [ :sum :each | sum + each carryingCapacity ]
+]
+
 { #category : 'acorns' }
 BBModel >> updateAcorns [
 
 	acornAvailability := self acornSeries at: self currentTimeStep + 1
+]
+
+{ #category : 'probes' }
+BBModel >> urbanBoars [
+	"As in the original model, this probe divides by the habitat potential of each plot, where associations divide by its habitat quality"
+
+	<probeNamed: 'Urban boars' color: 'D62728'>
+	^ self cells inject: 0 into: [ :sum :each |
+			  | potential |
+			  potential := each habitatPotential.
+			  potential > 0
+				  ifTrue: [
+				  sum + (each boars * (each habitatQualityOf: #City) / potential) ]
+				  ifFalse: [ sum ] ]
+]
+
+{ #category : 'probes' }
+BBModel >> urbanBoarsPerTown [
+	"Urban boars for each plot's worth of city"
+
+	<probeNamed: 'Urban boars per plot of city' color: 'FF9896'>
+	| city |
+	city := self cells
+		        inject: 0
+		        into: [ :sum :each |
+		        sum + (each landCover fractionOf: #City) ].
+	city = 0 ifTrue: [ ^ 0 ].
+	^ self urbanBoars / city
 ]
 
 { #category : 'acorns' }

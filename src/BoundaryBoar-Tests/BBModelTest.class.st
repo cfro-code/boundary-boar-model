@@ -9,6 +9,18 @@ Class {
 }
 
 { #category : 'tests' }
+BBModelTest >> testEveryPerspectiveShowsAspectsThatExist [
+
+	| model |
+	model := self modelWithPlotRows:
+		         { (self plotRowAt: 1 @ 1 with: #(  )) }.
+
+	self assert: model perspectiveSelectors notEmpty.
+	model perspectiveSelectors do: [ :each |
+		self shouldnt: [ model perspectiveNamed: each ] raise: Error ]
+]
+
+{ #category : 'tests' }
 BBModelTest >> testLandCoverStartsFromThe1990Map [
 
 	| model cover |
