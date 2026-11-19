@@ -1,0 +1,3 @@
+# BoundaryBoar
+
+Wild boar populations at the rural-urban interface of Montpellier: habitat, dispersal across roads and rivers, hunting, farmers, residents and cities. Ported from the Cormas VisualWorks model BOUNDARYBOAR.

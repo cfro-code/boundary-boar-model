@@ -1,0 +1,120 @@
+"
+I am BOUNDARYBOAR, a model of wild boar populations at the rural-urban interface of Montpellier, ported from the Cormas VisualWorks model `BOUNDARYBOAR_V3`. One step is one year, starting from the landscape of 1990.
+
+## Responsibility:
+
+- Create the hexagonal landscape of Montpellier from the plot and cover tables of my data folder.
+- Group plots into municipalities, administrative territories and hunting units.
+- Run the yearly schedule of the model.
+
+## Collaborators:
+
+- `BBPlot`: the cells of my grid, in which odd columns are shifted down by half a cell, as in the original.
+- `BBLandCover`: the land cover of each plot.
+- `BBCityTerritory`, `BBAdministrativeTerritory` and `BBHuntingUnit`: the territories.
+
+## Public API and Key Messages
+
+- `initMontpellier` creates the landscape of 1990 from `plotMtpBis.csv` and `coverMtpBis.csv`.
+- `initWithPlotTable:coverTable:` creates a landscape from tables given as one dictionary per row, from column names to texts.
+
+```
+model := BBModel new.
+model initMontpellier.
+(model cellAt: 9 at: 12) cityTerritory name. ""'MONTPELLIER'""
+```
+
+### Implementation Points
+
+The rules follow the ODD description of the original model, written from its code. Where this port differs from the original on purpose, the class concerned says so in its comment.
+"
+Class {
+	#name : 'BBModel',
+	#superclass : 'CMModel',
+	#category : 'BoundaryBoar-Model',
+	#package : 'BoundaryBoar-Model'
+}
+
+{ #category : 'accessing' }
+BBModel class >> prefix [
+	"Every class name in the model package begins with this prefix"
+
+	^ 'BB'
+]
+
+{ #category : 'initialization' }
+BBModel >> createTerritories [
+
+	self createTerritories: BBCityTerritory groupingPlotsBy: #cityName.
+	self
+		createTerritories: BBAdministrativeTerritory
+		groupingPlotsBy: #administrativeName.
+	self
+		createTerritories: BBHuntingUnit
+		groupingPlotsBy: #huntingUnitName
+]
+
+{ #category : 'initialization' }
+BBModel >> createTerritories: aTerritoryClass groupingPlotsBy: aSelector [
+	"Create one territory for each name, with all the plots of that name, whether they touch or not"
+
+	(self cells groupedBy: aSelector) keysAndValuesDo: [ :name :plots |
+		(self createAggregate: aTerritoryClass from: plots) name: name ]
+]
+
+{ #category : 'initialization' }
+BBModel >> initMontpellier [
+	"The landscape of Montpellier in 1990"
+
+	<init>
+	self
+		initWithPlotTable: (self tableNamed: 'plotMtpBis.csv')
+		coverTable: (self tableNamed: 'coverMtpBis.csv')
+]
+
+{ #category : 'initialization' }
+BBModel >> initWithPlotTable: somePlotRows coverTable: someCoverRows [
+	"Create the grid, the plots and their land cover from the rows of the plot and cover tables, which give one row per plot"
+
+	self
+		createGridNumberOfRows:
+		(somePlotRows collect: [ :row | (row at: 'rowIndex') asNumber ]) max
+		numberOfColumns:
+		(somePlotRows collect: [ :row | (row at: 'colIndex') asNumber ]) max
+		neighbourhood: #flat6OddColumnsDown
+		closed: true.
+	somePlotRows do: [ :row |
+		(self plotInRow: row) initializeFromRow: row ].
+	someCoverRows do: [ :row |
+		(self plotInRow: row) landCover: (BBLandCover fromRow: row) ].
+	self createTerritories
+]
+
+{ #category : 'private' }
+BBModel >> plotInRow: aRow [
+	"Answer the plot that a row of the plot or cover table describes"
+
+	^ self
+		  cellAt: (aRow at: 'rowIndex') asNumber
+		  at: (aRow at: 'colIndex') asNumber
+]
+
+{ #category : 'control' }
+BBModel >> step [
+
+	<control>
+	"Executed at every step of the simulation"
+]
+
+{ #category : 'private' }
+BBModel >> tableNamed: aFileName [
+	"Read a table of the data folder, whose columns are separated by semicolons, as one dictionary per row from the column names to the texts of the row"
+
+	| lines columnNames |
+	lines := (self folder / 'data' / aFileName) contents lines.
+	columnNames := lines first splitOn: $;.
+	^ lines allButFirst collect: [ :line |
+			  (columnNames
+				   with: (line splitOn: $;)
+				   collect: [ :name :text | name -> text ]) asDictionary ]
+]
