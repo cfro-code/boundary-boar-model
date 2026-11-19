@@ -43,8 +43,14 @@ BBRiver >> aspectDefault: look [
 	<aspect>
 	super aspectDefault: look.
 	look
-		color: (Color fromHexString: '1E64C8');
-		thickness: 2
+		color: (Color fromHexString: '1F77FF');
+		thickness: 0.09
+]
+
+{ #category : 'accessing' }
+BBRiver >> attractivityRate [
+
+	^ self class attractivityRate
 ]
 
 { #category : 'crossing' }

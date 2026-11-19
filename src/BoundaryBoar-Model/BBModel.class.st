@@ -13,7 +13,7 @@ I am BOUNDARYBOAR, a model of wild boar populations at the rural-urban interface
 
 - `BBPlot`: the cells of my grid, in which odd columns are shifted down by half a cell, as in the original.
 - `BBLandCover`: the land cover of each plot.
-- `BBRoad`, `BBHighway` and `BBRiver`: the links on the edges between plots.
+- `BBRoad`, `BBHighway` and `BBRiver`: the links on the edges between plots, from one `BBNode` to another at the corners of the edges.
 - `BBCityTerritory`, `BBAdministrativeTerritory` and `BBHuntingUnit`: the territories.
 
 ## Public API and Key Messages
@@ -71,17 +71,30 @@ BBModel >> acornSeries [
 ]
 
 { #category : 'initialization' }
-BBModel >> addFeature: aFeatureClass between: aPlot and: anotherPlot [
+BBModel >> addFeature: aFeatureClass towards: aDirection of: aPlot nodes: someNodes [
+	"Create a feature on the edge of aPlot in aDirection, unless one of that class is there already"
 
-	((aPlot featuresTowards: anotherPlot) anySatisfy: [ :each |
+	| neighbour corners feature |
+	neighbour := aPlot neighbourTowards: aDirection.
+	((aPlot featuresTowards: neighbour) anySatisfy: [ :each |
 		 each class == aFeatureClass ]) ifTrue: [ ^ self ].
-	self newEntity: aFeatureClass from: aPlot to: anotherPlot
+	corners := BBPlot edgeCorners at: aDirection.
+	feature := self
+		           newEntity: aFeatureClass
+		           from:
+		           (self nodeAt: corners first of: aPlot in: someNodes)
+		           to: (self nodeAt: corners last of: aPlot in: someNodes).
+	feature between: aPlot and: neighbour.
+	aPlot addFeature: feature.
+	neighbour addFeature: feature
 ]
 
 { #category : 'initialization' }
 BBModel >> createLinearFeaturesFrom: somePlotRows [
-	"The plot table lists each road, highway or river on both plots of its edge, such as 'RW' for a road and a river. Create one link of each type per edge, from the plot with the lower id"
+	"The plot table lists each road, highway or river on both plots of its edge, such as 'RW' for a road and a river. Create one link of each type per edge, from the plot with the lower id, between nodes at the two corners of the edge"
 
+	| nodes |
+	nodes := Dictionary new.
 	(somePlotRows asSortedCollection: [ :a :b |
 		 (self plotInRow: a) id <= (self plotInRow: b) id ]) do: [ :row |
 			| plot |
@@ -91,8 +104,9 @@ BBModel >> createLinearFeaturesFrom: somePlotRows [
 							(row at: 'edge' , direction) do: [ :letter |
 									self
 										addFeature: (BBLinearFeature forLetter: letter)
-										between: plot
-										and: (plot neighbourTowards: direction) ] ] ] ]
+										towards: direction
+										of: plot
+										nodes: nodes ] ] ] ]
 ]
 
 { #category : 'initialization' }
@@ -171,6 +185,22 @@ BBModel >> initWithPlotTable: somePlotRows coverTable: someCoverRows [
 BBModel >> killBoarsOnRoads [
 
 	self cells do: [ :each | each killBoarsBesideRoads ]
+]
+
+{ #category : 'initialization' }
+BBModel >> nodeAt: aCorner of: aPlot in: someNodes [
+	"Answer the node at a corner of aPlot, creating it on aPlot if no plot around that corner has it yet. someNodes holds the nodes by their position on the grid"
+
+	| position |
+	position := BBPlot cornerPositions at: aCorner.
+	^ someNodes
+		  at: ((self spaceModel neighbourhoodConfiguration
+				    gridPositionOf: aPlot
+				    at: position) roundTo: 0.01)
+		  ifAbsentPut: [
+				  (self newEntity: BBNode locatedAt: aPlot)
+					  positionInCell: position;
+					  yourself ]
 ]
 
 { #category : 'private' }

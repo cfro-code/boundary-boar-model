@@ -65,14 +65,13 @@ BBRoad >> aspectCollisions: look [
 	"The boars killed by cars on me this year, from grey for none to red for one or more"
 
 	<aspect>
-	super aspectDefault: look.
+	self aspectDefault: look.
 	look
 		colorBetween: Color lightGray
 		and: Color red
 		forValue: collisions
 		from: 0
-		to: 1;
-		thicknessForValue: collisions from: 0 to: 1
+		to: 1
 ]
 
 { #category : 'aspects' }
@@ -81,8 +80,8 @@ BBRoad >> aspectDefault: look [
 	<aspect>
 	super aspectDefault: look.
 	look
-		color: Color darkGray;
-		thickness: 2
+		color: (Color fromHexString: '5E5E5E');
+		thickness: 0.06
 ]
 
 { #category : 'crossing' }

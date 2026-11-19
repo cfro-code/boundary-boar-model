@@ -14,7 +14,7 @@ I am a hexagonal plot of the landscape around Montpellier. I know my land cover,
 - `BBModel` creates me from the plot table and gives me my land cover.
 - `BBLandCover` holds the fractions of my area under each type of land cover.
 - `BBCityTerritory`, `BBAdministrativeTerritory` and `BBHuntingUnit` are the territories I belong to.
-- `BBRoad`, `BBHighway` and `BBRiver` are links on my edges, which my dispersing boars cross, and which kill some of my boars.
+- `BBRoad`, `BBHighway` and `BBRiver` lie on my edges: my dispersing boars cross them, and roads kill some of my boars.
 
 ## Public API and Key Messages
 
@@ -40,6 +40,7 @@ plot carryingCapacity. ""33 on a pure forest plot with acorns at 0.5""
 - `livingStandard` is `#veryLow`, `#low`, `#medium`, `#high`, `#veryHigh` or `#NA`.
 - `initialWasteAccessibility` and `initialFeedingIntensity` are the values before any city policy; `wasteAccessibility` and `feedingIntensity` are the current ones.
 - `cityName`, `administrativeName` and `huntingUnitName` are the names my territories are created from.
+- `features` holds the roads, highways and rivers on my edges.
 - `boars` is a number that need not be whole. `arrivingBoars` and `leavingBoars` add up the boars that move during one dispersal.
 
 ### Implementation Points
@@ -68,7 +69,8 @@ Class {
 		'landCover',
 		'boars',
 		'arrivingBoars',
-		'leavingBoars'
+		'leavingBoars',
+		'features'
 	],
 	#classInstVars : [
 		'wasteDensityWeight',
@@ -109,19 +111,32 @@ BBPlot class >> carryingCapacityWeights [
 		  (#feedingIntensity -> 0.5) } asDictionary
 ]
 
-{ #category : 'aspects' }
-BBPlot class >> coverColors [
-	"The colors of the types of land cover, from the CORINE Land Cover legend"
+{ #category : 'linear features' }
+BBPlot class >> cornerPositions [
+	"The corners of a flat-top hexagon, numbered as in the original model, as positions in the box around the plot, from 0@0 at its top left to 1@1 at its bottom right"
 
 	^ {
-		  (#City -> (Color fromHexString: 'E6004D')).
-		  (#IndusZone -> (Color fromHexString: 'CC4DF2')).
-		  (#OpenLand -> (Color fromHexString: 'A6E64D')).
-		  (#Forest -> (Color fromHexString: '00A600')).
-		  (#Agri -> (Color fromHexString: 'FFE64D')).
-		  (#Wetland -> (Color fromHexString: 'A6A6FF')).
-		  (#Sea -> (Color fromHexString: '00CCF2')).
-		  (#BurntArea -> Color black) } asDictionary
+		  (1 -> (0.25 @ 1)).
+		  (2 -> (0 @ 0.5)).
+		  (3 -> (0.25 @ 0)).
+		  (4 -> (0.75 @ 0)).
+		  (5 -> (1 @ 0.5)).
+		  (6 -> (0.75 @ 1)) } asDictionary
+]
+
+{ #category : 'aspects' }
+BBPlot class >> coverColors [
+	"The colors of the types of land cover, as in the figures of the ODD description of the model"
+
+	^ {
+		  (#City -> (Color fromHexString: 'D62728')).
+		  (#IndusZone -> (Color fromHexString: '9467BD')).
+		  (#OpenLand -> (Color fromHexString: '98DF8A')).
+		  (#Forest -> (Color fromHexString: '2C7A2C')).
+		  (#Agri -> (Color fromHexString: 'F1D54B')).
+		  (#Wetland -> (Color fromHexString: '7FD3E8')).
+		  (#Sea -> (Color fromHexString: '1F5FBF')).
+		  (#BurntArea -> (Color fromHexString: '222222')) } asDictionary
 ]
 
 { #category : 'parameters' }
@@ -150,6 +165,19 @@ BBPlot class >> dispersalSteepness [
 BBPlot class >> dispersalSteepness: aNumber [
 
 	dispersalSteepness := aNumber
+]
+
+{ #category : 'linear features' }
+BBPlot class >> edgeCorners [
+	"The two corners of the edge of a plot in each direction of the plot table"
+
+	^ {
+		  (#N -> #( 3 4 )).
+		  (#NE -> #( 4 5 )).
+		  (#SE -> #( 5 6 )).
+		  (#S -> #( 1 6 )).
+		  (#SW -> #( 2 1 )).
+		  (#NW -> #( 3 2 )) } asDictionary
 ]
 
 { #category : 'parameters' }
@@ -286,6 +314,12 @@ BBPlot class >> wasteLivingStandardWeight: aNumber [
 BBPlot >> acornAvailability [
 
 	^ self cormasModel acornAvailability
+]
+
+{ #category : 'linear features' }
+BBPlot >> addFeature: aLinearFeature [
+
+	features add: aLinearFeature
 ]
 
 { #category : 'accessing' }
@@ -442,7 +476,7 @@ BBPlot >> attractivity [
 	"Answer how much I attract dispersing boars: the more room I have, the more, and more again if I am on a river"
 
 	^ self carryingCapacity * (1 - self saturation)
-	  * (1 + self riverAttractivity)
+	  * (1 + self edgeAttractivity)
 ]
 
 { #category : 'boars' }
@@ -495,11 +529,20 @@ BBPlot >> densityDispersers [
 ]
 
 { #category : 'linear features' }
+BBPlot >> edgeAttractivity [
+	"Answer how much the features on my edges make me attractive to dispersing boars: the most attractive one counts"
+
+	^ features
+		  inject: 0
+		  into: [ :maximum :each | maximum max: each attractivityRate ]
+]
+
+{ #category : 'linear features' }
 BBPlot >> featuresTowards: aPlot [
 	"Answer the roads, highways and rivers on my edge with aPlot, in the order boars meet them"
 
-	^ ((self linksOfClass: BBLinearFeature) select: [ :each |
-		   (each otherEndOf: self) == aPlot ]) asSortedCollection: [ :a :b |
+	^ (features select: [ :each | each plots includes: aPlot ])
+		  asSortedCollection: [ :a :b |
 		  a class crossingOrder <= b class crossingOrder ]
 ]
 
@@ -613,7 +656,8 @@ BBPlot >> initialize [
 	super initialize.
 	boars := 0.
 	arrivingBoars := 0.
-	leavingBoars := 0
+	leavingBoars := 0.
+	features := OrderedCollection new
 ]
 
 { #category : 'initialization' }
@@ -669,8 +713,8 @@ BBPlot >> isUrban [
 BBPlot >> killBoarsBesideRoads [
 	"Each road kills some of my boars, if it is mine: a road belongs to the plot with the lower id of the two it lies between"
 
-	((self linksOfClass: BBRoad) select: [ :each | each from == self ])
-		do: [ :each | each killResidentsOf: self ]
+	features do: [ :each |
+		each plots first == self ifTrue: [ each killResidentsOf: self ] ]
 ]
 
 { #category : 'accessing' }
@@ -720,14 +764,6 @@ BBPlot >> resetDispersal [
 
 	arrivingBoars := 0.
 	leavingBoars := 0
-]
-
-{ #category : 'linear features' }
-BBPlot >> riverAttractivity [
-
-	^ (self linksOfClass: BBRiver) isEmpty
-		  ifTrue: [ 0 ]
-		  ifFalse: [ BBRiver attractivityRate ]
 ]
 
 { #category : 'boars' }

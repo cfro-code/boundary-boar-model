@@ -26,8 +26,8 @@ BBHighway >> aspectDefault: look [
 	<aspect>
 	super aspectDefault: look.
 	look
-		color: Color red;
-		thickness: 3
+		color: Color black;
+		thickness: 0.12
 ]
 
 { #category : 'crossing' }

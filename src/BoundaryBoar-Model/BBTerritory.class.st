@@ -16,6 +16,7 @@ I am a territory made of plots that share a name in the plot table: a municipali
 
 - `name` answers my name, such as 'MONTPELLIER', 'MMM' or '8'.
 - `components` answers my plots.
+- I am not drawn by default, so that the land cover of my plots shows clearly; my aspect Border draws my border.
 
 ```
 (model cellAt: 9 at: 12) cityTerritory name. ""'MONTPELLIER'""
@@ -34,6 +35,22 @@ Class {
 	#category : 'BoundaryBoar-Model',
 	#package : 'BoundaryBoar-Model'
 }
+
+{ #category : 'aspects' }
+BBTerritory >> aspectBorder: look [
+	"The border Cormas draws around an aggregate"
+
+	<aspect>
+	super aspectDefault: look
+]
+
+{ #category : 'aspects' }
+BBTerritory >> aspectDefault: look [
+	"Territories are not drawn by default: their plots show them with their own aspects, such as Municipality"
+
+	<aspect>
+	look beInvisible
+]
 
 { #category : 'accessing' }
 BBTerritory >> name [

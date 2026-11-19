@@ -37,13 +37,34 @@ BBLinearFeatureTest >> testAnEdgeListedOnBothPlotsGetsOneFeatureOfEachType [
 	right := model cellAt: 1 at: 3.
 
 	self assert: model links size equals: 2.
-	self assert: (middle linksOfClass: BBRoad) size equals: 1.
-	self assert: (middle linksOfClass: BBRiver) size equals: 1.
 	self
-		assert: ((middle linksOfClass: BBRoad) first otherEndOf: middle)
-		identicalTo: right.
+		assert:
+			((middle featuresTowards: right) collect: [ :each | each class ])
+				asSet
+		equals: {
+				BBRoad.
+				BBRiver } asSet.
+	self
+		assert:
+			((right featuresTowards: middle) collect: [ :each | each class ])
+				asSet
+		equals: {
+				BBRoad.
+				BBRiver } asSet.
 	self assert:
-		((model cellAt: 1 at: 1) linksOfClass: BBLinearFeature) isEmpty
+		((model cellAt: 1 at: 1) featuresTowards: middle) isEmpty
+]
+
+{ #category : 'tests' }
+BBLinearFeatureTest >> testFeaturesOnTheSameEdgeShareTheirCorners [
+
+	| model road river |
+	model := self modelWithFullMiddlePlotAndRightEdge: 'RW'.
+	road := (model allEntitiesOfClass: BBRoad) first.
+	river := (model allEntitiesOfClass: BBRiver) first.
+
+	self assert: road ends asSet equals: river ends asSet.
+	self assert: (model allEntitiesOfClass: BBNode) size equals: 2
 ]
 
 { #category : 'tests' }
@@ -57,6 +78,34 @@ BBLinearFeatureTest >> testHighwayTurnsBoarsBackToOtherEdges [
 	self assert: (model cellAt: 1 at: 1) boars closeTo: 3.3.
 	self assert: (model cellAt: 1 at: 3) boars equals: 0.
 	self assert: model totalBoars closeTo: 33
+]
+
+{ #category : 'tests' }
+BBLinearFeatureTest >> testRiverAlongTwoEdgesIsOneLineThroughTheirCommonCorner [
+	"The river follows the edge between the plots of row 1, then turns down between the plots of column 2. Its two segments meet at the corner the three plots share, even though different plots list them"
+
+	| model segments |
+	model := self
+		         modelWithPlotRows: {
+				         (self plotRowAt: 1 @ 1 with: { ('edgeNE' -> 'W') }).
+				         (self plotRowAt: 1 @ 2 with: {
+						          ('edgeSW' -> 'W').
+						          ('edgeS' -> 'W') }).
+				         (self plotRowAt: 2 @ 1 with: #(  )).
+				         (self plotRowAt: 2 @ 2 with: { ('edgeN' -> 'W') }) }
+		         coverRows: ({
+				          (1 @ 1).
+				          (1 @ 2).
+				          (2 @ 1).
+				          (2 @ 2) } collect: [ :each |
+				          self coverRowAt: each with: #(  ) ]).
+	segments := model allEntitiesOfClass: BBRiver.
+
+	self assert: segments size equals: 2.
+	self
+		assert: (segments first ends intersection: segments last ends) size
+		equals: 1.
+	self assert: (model allEntitiesOfClass: BBNode) size equals: 3
 ]
 
 { #category : 'tests' }
