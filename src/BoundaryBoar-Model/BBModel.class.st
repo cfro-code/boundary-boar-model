@@ -141,7 +141,7 @@ BBModel >> bag [
 
 { #category : 'probes' }
 BBModel >> boars [
-
+	"Plop"
 	<probeNamed: 'Boars' color: '8B4513'>
 	^ self totalBoars
 ]
