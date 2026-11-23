@@ -190,14 +190,11 @@ BBHuntingGroup >> organizeHuntsIn: aYear [
 BBHuntingGroup >> satisfaction [
 	"Answer how satisfied I am, from my last bag compared with the last ten years, and, as in the original model, from the damage farmers suffer on my unit"
 
-	| bags meanBag harvest |
-	bags := huntingUnit bags.
-	meanBag := bags isEmpty
-		           ifTrue: [ 0 ]
-		           ifFalse: [ (bags sum: [ :each | each ]) / bags size ].
+	| meanBag harvest |
+	meanBag := huntingUnit meanBag.
 	harvest := meanBag <= 0
 		           ifTrue: [ 0 ]
-		           ifFalse: [ bags last / meanBag min: 1 ].
+		           ifFalse: [ huntingUnit bags last / meanBag min: 1 ].
 	^ 0.6 * harvest + (0.4 * huntingUnit meanFarmerDamage) min: 1
 ]
 

@@ -127,6 +127,23 @@ BBHuntingTest >> testHuntingStaysAllowedIn2018WhereThereIsNoMontpellier [
 ]
 
 { #category : 'tests' }
+BBHuntingTest >> testHuntingUnitBagIsWhatItsHuntsKilledOnAllItsPlots [
+
+	| model unit |
+	model := self modelWithForestPlotsIn:
+		         #( 'GRABELS' 'GRABELS' 'GRABELS' ).
+	(model cellAt: 1 at: 1) boars: 100.
+	(model cellAt: 1 at: 2) boars: 200.
+	(self groupOf: model) organizeHuntOn: (model cellAt: 1 at: 1).
+	(self groupOf: model) organizeHuntOn: (model cellAt: 1 at: 2).
+	model huntBoars.
+	unit := (model cellAt: 1 at: 1) huntingUnit.
+
+	self assert: unit bag closeTo: 30.
+	self assert: unit boars closeTo: 100 + 200 + 3 - 30
+]
+
+{ #category : 'tests' }
 BBHuntingTest >> testHuntsLeaveTheCitiesThatBanHunting [
 
 	| model |

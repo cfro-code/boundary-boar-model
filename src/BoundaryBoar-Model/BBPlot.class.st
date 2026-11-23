@@ -1054,6 +1054,16 @@ BBPlot >> settleDispersers [
 	boars := boars - leavingBoars + arrivingBoars max: 0
 ]
 
+{ #category : 'boars' }
+BBPlot >> urbanBoars [
+	"Answer the boars of my city part. As in the original model, divide by my habitat potential, where associations divide by my habitat quality"
+
+	| potential |
+	potential := self habitatPotential.
+	potential > 0 ifFalse: [ ^ 0 ].
+	^ self boars * (self habitatQualityOf: #City) / potential
+]
+
 { #category : 'hunting' }
 BBPlot >> urbanFraction [
 

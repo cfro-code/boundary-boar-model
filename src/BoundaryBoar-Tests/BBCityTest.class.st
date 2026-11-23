@@ -125,6 +125,44 @@ BBCityTest >> testSatisfiedResidentsLeaveTheirCityAsItIs [
 	self assert: plot wasteAccessibility closeTo: 1
 ]
 
+{ #category : 'tests' }
+BBCityTest >> testTerritoriesSumTheBoarsAndAverageTheResidentsOfTheirTowns [
+
+	| model towns territory associations |
+	model := self
+		         modelWithPlotRows:
+			         ({ 'GRABELS'. 'JUVIGNAC' } withIndexCollect: [ :town :column |
+					          self plotRowAt: 1 @ column with: {
+							          ('cityTerritory' -> town).
+							          ('humanPopDensity' -> 'urbanDense').
+							          ('livingStandard' -> 'veryLow').
+							          ('administrativeTerritory' -> 'MMM') } ])
+		         coverRows: ((1 to: 2) collect: [ :column |
+					          self coverRowAt: 1 @ column with: {
+							          ('coverCity_90' -> '0,5').
+							          ('coverForest_90' -> '0,5').
+							          ('coverCity_18' -> '0,5').
+							          ('coverForest_18' -> '0,5').
+							          ('treeCity' -> '0,2').
+							          ('grassCity' -> '0,15') } ]).
+	(model cellAt: 1 at: 1) boars: 2.
+	(model cellAt: 1 at: 2) boars: 8.
+	model assessSatisfaction.
+	towns := model cells collect: [ :each | each cityTerritory ].
+	territory := (model cellAt: 1 at: 1) administrativeTerritory.
+	associations := model allEntitiesOfClass: BBAssociation.
+
+	self assert: (towns allSatisfy: [ :each | each urbanBoars > 0 ]).
+	self
+		assert: (towns sum: [ :each | each urbanBoars ])
+		closeTo: model urbanBoars.
+	self assert: territory boars closeTo: 10.
+	self assert: associations size equals: 2.
+	self
+		assert: territory meanSatisfaction
+		closeTo: (associations sum: [ :each | each satisfaction ]) / 2
+]
+
 { #category : 'helpers' }
 BBCityTest >> townWithCover: someCoverAssociations boars: aNumber [
 	"A dense, very poor town plot of Montpellier Méditerranée Métropole, all city since 1990, with the given urban vegetation"

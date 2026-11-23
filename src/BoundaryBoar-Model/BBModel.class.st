@@ -32,7 +32,7 @@ model initMontpellier.
 (model cellAt: 9 at: 12) cityTerritory name. ""'MONTPELLIER'""
 ```
 
-- My probes chart the outputs of the original model: boars, urban boars, bags, hunts, collisions, farmer damage and fences, the fence budget, city policies, the satisfaction of residents, habitat, and the boars of Montferrier and of the Mosson.
+- My probes chart the outputs of the original model: boars, urban boars, bags, hunts, collisions, farmer damage and fences, the fence budget, city policies, the satisfaction of residents, and habitat. The per-unit and per-territory outputs are probes of `BBHuntingUnit`, `BBAdministrativeTerritory` and `BBCityTerritory`, and my charts show them, with the spread of the satisfaction of each `BBAssociation` and of the damage of each `BBFarmer`.
 - My perspectives answer one question each: land cover, boars, habitat, hunting, farming, towns and territories. A simulation of Montpellier opens with the land cover.
 
 ### Implementation Points
@@ -133,7 +133,7 @@ BBModel >> assessSatisfaction [
 { #category : 'probes' }
 BBModel >> bag [
 
-	<probeNamed: 'Bag of driven hunts' color: 'FF7F0E'>
+	<probe>
 	^ (self allEntitiesOfClass: BBDrivenHunt)
 		  inject: 0
 		  into: [ :sum :each | sum + each boarsKilled ]
@@ -142,23 +142,306 @@ BBModel >> bag [
 { #category : 'probes' }
 BBModel >> boars [
 	"Plop"
-	<probeNamed: 'Boars' color: '8B4513'>
+	<probe>
 	^ self totalBoars
 ]
 
-{ #category : 'private' }
-BBModel >> boarsAt: somePositions [
-	"Answer the boars of the plots at the positions row @ column"
+{ #category : 'charts' }
+BBModel >> chartBagPerHuntingUnit [
+	"Which hunting units kill the most boars?"
 
-	^ somePositions
-		  inject: 0
-		  into: [ :sum :each | sum + (self cellAt: each x at: each y) boars ]
+	<chart>
+	^ CMChart new
+		  title: 'Bag per hunting unit';
+		  barsX: #currentTimeStep y: #bag ofAll: BBHuntingUnit;
+		  yTitle: 'Boars killed';
+		  yourself
+]
+
+{ #category : 'charts' }
+BBModel >> chartBoars [
+	"How many boars are there, and how close are they to what the habitat can carry?"
+
+	<chart>
+	^ CMChart new
+		  title: 'Boars';
+		  add: (CMLineSeries new
+				   x: #currentTimeStep y: #boars;
+				   label: 'Boars';
+				   yourself);
+		  add: (CMLineSeries new
+				   x: #currentTimeStep y: #totalCarryingCapacity;
+				   label: 'Carrying capacity';
+				   yourself);
+		  yourself
+]
+
+{ #category : 'charts' }
+BBModel >> chartBoarsKilled [
+	"How many boars are killed each year, and by what?"
+
+	<chart>
+	^ CMChart new
+		  title: 'Boars killed';
+		  add: (CMBarSeries new
+				   x: #currentTimeStep y: #bag;
+				   label: 'Bag of driven hunts';
+				   yourself);
+		  add: (CMBarSeries new
+				   x: #currentTimeStep y: #collisions;
+				   label: 'Road collisions';
+				   yourself);
+		  yourself
+]
+
+{ #category : 'charts' }
+BBModel >> chartBoarsPerAdministrativeTerritory [
+	"Where do the boars live, from one administrative territory to another?"
+
+	<chart>
+	^ CMChart new
+		  title: 'Boars per administrative territory';
+		  areasX: #currentTimeStep
+		  y: #boars
+		  ofAll: BBAdministrativeTerritory;
+		  yTitle: 'Boars';
+		  yourself
+]
+
+{ #category : 'charts' }
+BBModel >> chartBoarsPerHuntingUnit [
+	"Where do the boars live, from one hunting unit to another?"
+
+	<chart>
+	^ CMChart new
+		  title: 'Boars per hunting unit';
+		  areasX: #currentTimeStep y: #boars ofAll: BBHuntingUnit;
+		  yTitle: 'Boars';
+		  yourself
+]
+
+{ #category : 'charts' }
+BBModel >> chartCityPolicies [
+	"How strongly do cities act against boars?"
+
+	<chart>
+	^ CMChart new
+		  title: 'Policies of the cities';
+		  add: (CMLineSeries new
+				   x: #currentTimeStep y: #meanWastePolicy;
+				   label: 'Mean waste policy';
+				   yourself);
+		  add: (CMLineSeries new
+				   x: #currentTimeStep y: #meanFeedingPolicy;
+				   label: 'Mean feeding policy';
+				   yourself);
+		  add: (CMLineSeries new
+				   x: #currentTimeStep y: #meanBrushcuttingCampaigns;
+				   label: 'Mean brush-cutting campaigns';
+				   yourself);
+		  yourself
+]
+
+{ #category : 'charts' }
+BBModel >> chartDamageSpread [
+	"Do all farmers lose a little, or a few lose a lot?"
+
+	<chart>
+	^ CMChart new
+		  title: 'Farmer damage';
+		  boxesX: #currentTimeStep y: #damage ofAll: BBFarmer;
+		  yFrom: 0 to: 1;
+		  hideLegend;
+		  yourself
+]
+
+{ #category : 'charts' }
+BBModel >> chartFarmerDamagePerAdministrativeTerritory [
+	"Where do farmers lose the most to boars?"
+
+	<chart>
+	^ CMChart new
+		  title: 'Farmer damage per administrative territory';
+		  linesX: #currentTimeStep
+		  y: #meanFarmerDamage
+		  ofAll: BBAdministrativeTerritory;
+		  yFrom: 0 to: 1;
+		  yourself
+]
+
+{ #category : 'charts' }
+BBModel >> chartFederationBudget [
+	"Can the hunting federation keep paying for fences?"
+
+	<chart>
+	^ CMChart new
+		  title: 'Fence budget of the hunting federation';
+		  lineX: #currentTimeStep y: #federationBudget;
+		  hideLegend;
+		  yourself
+]
+
+{ #category : 'charts' }
+BBModel >> chartFences [
+	"How do farmers protect their crops?"
+
+	<chart>
+	^ CMChart new
+		  title: 'Fences';
+		  add: (CMLineSeries new
+				   x: #currentTimeStep y: #farmersWithTemporaryFences;
+				   label: 'Temporary fences';
+				   yourself);
+		  add: (CMLineSeries new
+				   x: #currentTimeStep y: #farmersWithPermanentFences;
+				   label: 'Permanent fences';
+				   yourself);
+		  yTitle: 'Farmers';
+		  yourself
+]
+
+{ #category : 'charts' }
+BBModel >> chartGrowthRate [
+	"Does the habitat let boars grow faster or slower over the years?"
+
+	<chart>
+	^ CMChart new
+		  title: 'Mean growth rate';
+		  lineX: #currentTimeStep y: #meanGrowthRate;
+		  hideLegend;
+		  yourself
+]
+
+{ #category : 'charts' }
+BBModel >> chartHuntersSatisfaction [
+	"Which hunting groups are satisfied with their hunts?"
+
+	<chart>
+	^ CMChart new
+		  title: 'Satisfaction of hunters per hunting unit';
+		  linesX: #currentTimeStep
+		  y: #huntersSatisfaction
+		  ofAll: BBHuntingUnit;
+		  yFrom: 0 to: 1;
+		  yourself
+]
+
+{ #category : 'charts' }
+BBModel >> chartHunting [
+	"How much do hunting groups and farmers hunt?"
+
+	<chart>
+	^ CMChart new
+		  title: 'Hunting';
+		  add: (CMLineSeries new
+				   x: #currentTimeStep y: #drivenHunts;
+				   label: 'Driven hunts';
+				   yourself);
+		  add: (CMLineSeries new
+				   x: #currentTimeStep y: #farmersStands;
+				   label: 'Stands of farmers';
+				   yourself);
+		  yourself
+]
+
+{ #category : 'charts' }
+BBModel >> chartResidentsAndFarmers [
+	"Are residents satisfied with the boars around them, and how much do farmers lose?"
+
+	<chart>
+	^ CMChart new
+		  title: 'Residents and farmers';
+		  add: (CMLineSeries new
+				   x: #currentTimeStep y: #meanSatisfaction;
+				   label: 'Mean satisfaction of residents';
+				   yourself);
+		  add: (CMLineSeries new
+				   x: #currentTimeStep y: #meanFarmerDamage;
+				   label: 'Mean farmer damage';
+				   yourself);
+		  yFrom: 0 to: 1;
+		  yourself
+]
+
+{ #category : 'charts' }
+BBModel >> chartResidentsAndUrbanBoars [
+	"Are residents less satisfied where urban boars are many?"
+
+	<chart>
+	^ CMChart new
+		  title: 'Residents and urban boars';
+		  add: (CMPointSeries new
+				   x: #urbanBoars y: #satisfaction ofAll: BBAssociation;
+				   atShownStep;
+				   yourself);
+		  xTitle: 'Urban boars on the plot';
+		  yTitle: 'Satisfaction of residents';
+		  yFrom: 0 to: 1;
+		  hideLegend;
+		  yourself
+]
+
+{ #category : 'charts' }
+BBModel >> chartResidentsSatisfactionPerAdministrativeTerritory [
+	"Where are residents the least satisfied with the boars around them?"
+
+	<chart>
+	^ CMChart new
+		  title: 'Satisfaction of residents per administrative territory';
+		  linesX: #currentTimeStep
+		  y: #meanSatisfaction
+		  ofAll: BBAdministrativeTerritory;
+		  yFrom: 0 to: 1;
+		  yourself
+]
+
+{ #category : 'charts' }
+BBModel >> chartSatisfactionSpread [
+	"Are all residents a little dissatisfied, or a few very dissatisfied?"
+
+	<chart>
+	^ CMChart new
+		  title: 'Satisfaction of residents';
+		  boxesX: #currentTimeStep y: #satisfaction ofAll: BBAssociation;
+		  yFrom: 0 to: 1;
+		  hideLegend;
+		  yourself
+]
+
+{ #category : 'charts' }
+BBModel >> chartUrbanBoars [
+	"How many boars live in the towns?"
+
+	<chart>
+	^ CMChart new
+		  title: 'Urban boars';
+		  lineX: #currentTimeStep y: #urbanBoars;
+		  yTitle: 'Boars';
+		  hideLegend;
+		  yourself
+]
+
+{ #category : 'charts' }
+BBModel >> chartUrbanBoarsPerTown [
+	"In how many towns do boars become many?"
+
+	<chart>
+	^ CMChart new
+		  title: 'Towns by their urban boars';
+		  add: (CMHistogramSeries new
+				   x: #urbanBoars ofAll: BBCityTerritory;
+				   atShownStep;
+				   yourself);
+		  xTitle: 'Urban boars';
+		  yTitle: 'Towns';
+		  hideLegend;
+		  yourself
 ]
 
 { #category : 'probes' }
 BBModel >> collisions [
 
-	<probeNamed: 'Road collisions' color: '5E5E5E'>
+	<probe>
 	^ self roadCollisions
 ]
 
@@ -300,14 +583,14 @@ BBModel >> disperseBoarsByHunting [
 { #category : 'probes' }
 BBModel >> drivenHunts [
 
-	<probeNamed: 'Driven hunts' color: 'FFBB78'>
+	<probe>
 	^ (self allEntitiesOfClass: BBDrivenHunt) size
 ]
 
 { #category : 'probes' }
 BBModel >> farmersStands [
 
-	<probeNamed: 'Stands of farmers' color: '17BECF'>
+	<probe>
 	^ (self allEntitiesOfClass: BBStand) count: [ :each |
 		  each organizer isKindOf: BBFarmer ]
 ]
@@ -315,7 +598,7 @@ BBModel >> farmersStands [
 { #category : 'probes' }
 BBModel >> farmersWithPermanentFences [
 
-	<probeNamed: 'Farmers with permanent fences' color: '1F77B4'>
+	<probe>
 	^ (self allEntitiesOfClass: BBFarmer) count: [ :each |
 		  each hasPermanentFences ]
 ]
@@ -323,7 +606,7 @@ BBModel >> farmersWithPermanentFences [
 { #category : 'probes' }
 BBModel >> farmersWithTemporaryFences [
 
-	<probeNamed: 'Farmers with temporary fences' color: 'AEC7E8'>
+	<probe>
 	^ (self allEntitiesOfClass: BBFarmer) count: [ :each |
 		  each hasTemporaryFences ]
 ]
@@ -331,7 +614,7 @@ BBModel >> farmersWithTemporaryFences [
 { #category : 'probes' }
 BBModel >> federationBudget [
 
-	<probeNamed: 'Fence budget of the hunting federation' color: '9467BD'>
+	<probe>
 	^ self huntingFederation fenceBudget
 ]
 
@@ -430,7 +713,7 @@ BBModel >> mean: aBlock over: aCollection [
 { #category : 'probes' }
 BBModel >> meanBrushcuttingCampaigns [
 
-	<probeNamed: 'Mean brush-cutting campaigns' color: '2CA02C'>
+	<probe>
 	^ self
 		  mean: [ :each | each brushcuttingCampaigns ]
 		  over: (self allEntitiesOfClass: BBCity)
@@ -439,7 +722,7 @@ BBModel >> meanBrushcuttingCampaigns [
 { #category : 'probes' }
 BBModel >> meanFarmerDamage [
 
-	<probeNamed: 'Mean farmer damage' color: 'F1D54B'>
+	<probe>
 	^ self
 		  mean: [ :each | each damage ]
 		  over: (self allEntitiesOfClass: BBFarmer)
@@ -448,7 +731,7 @@ BBModel >> meanFarmerDamage [
 { #category : 'probes' }
 BBModel >> meanFeedingPolicy [
 
-	<probeNamed: 'Mean feeding policy' color: 'D62728'>
+	<probe>
 	^ self
 		  mean: [ :each | each feedingPolicy ]
 		  over: (self allEntitiesOfClass: BBCity)
@@ -458,7 +741,7 @@ BBModel >> meanFeedingPolicy [
 BBModel >> meanGrowthRate [
 	"The mean growth rate of the plots where boars can grow"
 
-	<probeNamed: 'Mean growth rate' color: '7F7F7F'>
+	<probe>
 	^ self
 		  mean: [ :each | each ]
 		  over:
@@ -469,7 +752,7 @@ BBModel >> meanGrowthRate [
 { #category : 'probes' }
 BBModel >> meanSatisfaction [
 
-	<probeNamed: 'Mean satisfaction of residents' color: '98DF8A'>
+	<probe>
 	^ self
 		  mean: [ :each | each satisfaction ]
 		  over: (self allEntitiesOfClass: BBAssociation)
@@ -478,32 +761,10 @@ BBModel >> meanSatisfaction [
 { #category : 'probes' }
 BBModel >> meanWastePolicy [
 
-	<probeNamed: 'Mean waste policy' color: 'FF7F0E'>
+	<probe>
 	^ self
 		  mean: [ :each | each wastePolicy ]
 		  over: (self allEntitiesOfClass: BBCity)
-]
-
-{ #category : 'probes' }
-BBModel >> montferrierBoars [
-	"The boars of the three plots of Montferrier-sur-Lez, as in the original model"
-
-	<probeNamed: 'Boars in Montferrier' color: 'BCBD22'>
-	^ self boarsAt: {
-			  (6 @ 11).
-			  (6 @ 12).
-			  (7 @ 12) }
-]
-
-{ #category : 'probes' }
-BBModel >> mossonBoars [
-	"The boars of the three plots of the Mosson district of Montpellier, as in the original model"
-
-	<probeNamed: 'Boars in the Mosson' color: 'DBDB8D'>
-	^ self boarsAt: {
-			  (9 @ 11).
-			  (10 @ 10).
-			  (10 @ 11) }
 ]
 
 { #category : 'initialization' }
@@ -721,7 +982,7 @@ BBModel >> totalBoars [
 { #category : 'probes' }
 BBModel >> totalCarryingCapacity [
 
-	<probeNamed: 'Total carrying capacity' color: '2C7A2C'>
+	<probe>
 	^ self cells
 		  inject: 0
 		  into: [ :sum :each | sum + each carryingCapacity ]
@@ -735,30 +996,9 @@ BBModel >> updateAcorns [
 
 { #category : 'probes' }
 BBModel >> urbanBoars [
-	"As in the original model, this probe divides by the habitat potential of each plot, where associations divide by its habitat quality"
 
-	<probeNamed: 'Urban boars' color: 'D62728'>
-	^ self cells inject: 0 into: [ :sum :each |
-			  | potential |
-			  potential := each habitatPotential.
-			  potential > 0
-				  ifTrue: [
-				  sum + (each boars * (each habitatQualityOf: #City) / potential) ]
-				  ifFalse: [ sum ] ]
-]
-
-{ #category : 'probes' }
-BBModel >> urbanBoarsPerTown [
-	"Urban boars for each plot's worth of city"
-
-	<probeNamed: 'Urban boars per plot of city' color: 'FF9896'>
-	| city |
-	city := self cells
-		        inject: 0
-		        into: [ :sum :each |
-		        sum + (each landCover fractionOf: #City) ].
-	city = 0 ifTrue: [ ^ 0 ].
-	^ self urbanBoars / city
+	<probe>
+	^ self cells sum: [ :each | each urbanBoars ]
 ]
 
 { #category : 'acorns' }

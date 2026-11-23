@@ -240,10 +240,11 @@ BBFarmer >> considerStand [
 		ifTrue: [ self setUpStand ]
 ]
 
-{ #category : 'accessing' }
+{ #category : 'probes' }
 BBFarmer >> damage [
 	"Answer the damage of the last year, from 0 for none to 1 for the most boars can do"
 
+	<probe>
 	^ damage
 ]
 

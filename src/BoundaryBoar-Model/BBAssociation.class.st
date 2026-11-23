@@ -137,8 +137,17 @@ BBAssociation >> profile: aDictionary [
 	profile := aDictionary
 ]
 
-{ #category : 'satisfaction' }
+{ #category : 'probes' }
 BBAssociation >> satisfaction [
 
+	<probe>
 	^ satisfaction
+]
+
+{ #category : 'probes' }
+BBAssociation >> urbanBoars [
+	"Answer the urban boars of the plot where my residents live"
+
+	<probe>
+	^ self cell urbanBoars
 ]
