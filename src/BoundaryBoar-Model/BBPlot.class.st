@@ -1015,7 +1015,7 @@ BBPlot >> saturation [
 
 { #category : 'dispersal' }
 BBPlot >> sendDispersers: aNumber [
-	"Share aNumber of my boars among my neighbours that have a habitat and are not more crowded than me, in proportion to their attractivity. They stay if there is no such neighbour. Roads, highways and rivers on the way stop or kill some of them, and the stopped ones leave through the edges that stopped nobody. If every edge stopped some, the stopped boars are lost, as in the original model"
+	"Share aNumber of my boars among my neighbours that have a habitat and are not more crowded than me, in proportion to their attractivity. They stay if there is no such neighbour. Roads, highways and rivers on the way stop or kill some of them, and the stopped ones leave through the edges that stopped nobody. If every edge stopped some, the stopped boars are lost, as in the original model. The neighbours are taken in the order of my neighbourhood, so that the same seed gives the same numbers"
 
 	| welcoming totalAttractivity crossing stopped escapes |
 	aNumber > 0 ifFalse: [ ^ self ].
@@ -1026,8 +1026,8 @@ BBPlot >> sendDispersers: aNumber [
 		                     inject: 0
 		                     into: [ :sum :each | sum + each attractivity ].
 	totalAttractivity > 0 ifFalse: [ ^ self ].
-	crossing := Dictionary new.
-	stopped := Dictionary new.
+	crossing := OrderedDictionary new.
+	stopped := OrderedDictionary new.
 	welcoming do: [ :each |
 			| boarsOnTheWay stoppedOnTheWay |
 			boarsOnTheWay := each attractivity / totalAttractivity * aNumber.
